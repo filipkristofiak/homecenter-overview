@@ -10,6 +10,40 @@ playground for infrastructure and data-platform skills.
 
 ---
 
+## Project Structure
+
+```
+homecenter/
+│
+├── docs/
+│   ├── architecture/         # naming conventions, overview
+│   ├── infrastructure/       # hardware inventory, node specs
+│   ├── network/              # network diagram
+│   ├── runbooks/             # per-service recovery guides
+│   └── future_planning/      # hardware repurposing, lab ideas
+│
+├── ansible/
+│   ├── inventory/
+│   │   └── hosts.yml
+│   ├── playbooks/            # one playbook per service
+│   └── roles/                # homeassistant, plex, monitoring, nut
+│
+├── terraform/
+│   └── pve-01/               # LXC/VM definitions for pve-01
+│   
+├── network/
+│   └── unifi/
+│       ├── configs/              # JSON exports (device, networks, firewall, wlan, ports)
+│       ├── fetch_config.py       # snapshots UniFi config via API # TODO: move to tools
+│       └── README.md             # setup and usage
+|
+└── tools/                  
+    └── pve/
+        └── status.py
+```
+
+---
+
 ## The stack at a glance
 
 | Layer | Technology | What I do with it |
@@ -101,39 +135,12 @@ Terraform/Ansible base; Proxmox Backup Server on repurposed hardware; VPN-gated
 remote access; and gradually pushing the remaining hand-managed pieces (NAS
 configuration via its REST API, host network config) into code.
 
+---
 
+## Docs
 
-
-## Project Structure
-
-```
-homecenter/
-│
-├── docs/
-│   ├── architecture/         # naming conventions, overview
-│   ├── infrastructure/       # hardware inventory, node specs
-│   ├── network/              # network diagram
-│   ├── runbooks/             # per-service recovery guides
-│   └── future_planning/      # hardware repurposing, lab ideas
-│
-├── ansible/
-│   ├── inventory/
-│   │   └── hosts.yml
-│   ├── playbooks/            # one playbook per service
-│   └── roles/                # homeassistant, plex, monitoring, nut
-│
-├── terraform/
-│   └── pve-01/               # LXC/VM definitions for pve-01
-│   
-├── network/
-│   └── unifi/
-│       ├── configs/              # JSON exports (device, networks, firewall, wlan, ports)
-│       ├── fetch_config.py       # snapshots UniFi config via API # TODO: move to tools
-│       └── README.md             # setup and usage
-|
-└── tools/                  
-    └── pve/
-        └── status.py
-
-
-```
+- [Naming conventions](docs/architecture/naming.md)
+- [IP addressing](docs/network/ip-addressing.md) - redacted
+- [Hardware inventory](docs/infrastructure/hardware_inventory.md) - redacted
+- [Network diagram](docs/network/diagram.md) - redacted
+- Runbooks: [Home Automation](docs/runbooks/homeautomation-vm.md) · [Plex](docs/runbooks/plex-lxc.md) · [Monitoring](docs/runbooks/monitoring-lxc.md) · [NUT](docs/runbooks/nut-server-lxc.md) · [TrueNAS](docs/runbooks/truenas-init-notes.md)
