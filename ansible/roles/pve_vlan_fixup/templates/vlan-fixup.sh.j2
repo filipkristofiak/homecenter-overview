@@ -1,0 +1,26 @@
+#!/bin/bash
+# Managed by Ansible — do not edit manually.
+#
+# Restores bridge VLAN assignments for LXC veth interfaces after boot.
+# Reads /etc/pve/lxc/*.conf at runtime to discover containers and their
+# VLAN tags — no hardcoded IDs, stays correct as containers are added/removed.
+
+set -euo pipefail
+
+shopt -s nullglob
+
+for conf in /etc/pve/lxc/*.conf; do
+    ctid=$(basename "$conf" .conf)
+
+    # Extract VLAN tag from any net line, e.g.: net0: name=eth0,bridge=vmbr0,tag=27,...
+    vlan=$(grep '^net[0-9]:' "$conf" | grep -oP 'tag=\K\d+' | head -1 || true)
+    [ -z "$vlan" ] && continue
+
+    iface="veth${ctid}i0"
+    if ip link show "$iface" &>/dev/null 2>&1; then
+        bridge vlan add dev "$iface" vid "$vlan" pvid untagged
+        logger -t vlan-fixup "applied VLAN ${vlan} to ${iface} (CT ${ctid})"
+    else
+        logger -t vlan-fixup "${iface} not found — CT ${ctid} may be stopped, skipping"
+    fi
+done

@@ -1,0 +1,40 @@
+---
+- name: Install qemu-guest-agent
+  apt:
+    name: qemu-guest-agent
+    state: present
+
+- name: Enable and start qemu-guest-agent
+  systemd:
+    name: qemu-guest-agent
+    enabled: true
+    state: started
+
+- name: Create Home Assistant directories
+  file:
+    path: "{{ homeassistant_dir }}/{{ item }}"
+    state: directory
+    mode: "0750"
+  loop:
+    - ""
+    - config
+
+- name: Deploy docker-compose.yml
+  copy:
+    src: docker-compose.yml
+    dest: "{{ homeassistant_dir }}/docker-compose.yml"
+    mode: "0640"
+  notify: Restart homeassistant
+
+- name: Flush handlers (apply config changes before printing URL)
+  meta: flush_handlers
+
+- name: Start Home Assistant
+  community.docker.docker_compose_v2:
+    project_src: "{{ homeassistant_dir }}"
+    state: present
+    pull: always
+
+- name: Print Home Assistant UI URL
+  debug:
+    msg: "Home Assistant → http://{{ ansible_host }}:8123 (onboarding wizard on first run)"

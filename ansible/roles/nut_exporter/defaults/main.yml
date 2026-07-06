@@ -1,0 +1,4 @@
+---
+nut_exporter_ups: "{{ nut_ups_name }}"  # inherits from nut role
+nut_exporter_textfile_dir: "{{ node_exporter_textfile_dir }}"
+nut_exporter_script: /usr/local/bin/nut-metrics.sh

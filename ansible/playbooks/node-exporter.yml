@@ -1,0 +1,5 @@
+---
+- name: Install node exporter on all LXC containers
+  hosts: pve_lxc
+  roles:
+    - node_exporter

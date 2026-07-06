@@ -1,0 +1,30 @@
+---
+- name: Install prometheus-node-exporter
+  apt:
+    name: prometheus-node-exporter
+    state: present
+    update_cache: true
+
+- name: Configure node-exporter textfile directory
+  copy:
+    dest: /etc/default/prometheus-node-exporter
+    content: |
+      ARGS="--collector.textfile.directory={{ node_exporter_textfile_dir }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart node-exporter
+
+- name: Create textfile collector directory
+  file:
+    path: "{{ node_exporter_textfile_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Enable and start node exporter
+  systemd:
+    name: prometheus-node-exporter
+    enabled: true
+    state: started

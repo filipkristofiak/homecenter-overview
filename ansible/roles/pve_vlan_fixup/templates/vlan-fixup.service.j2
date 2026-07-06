@@ -1,0 +1,15 @@
+[Unit]
+Description=Restore bridge VLAN assignments for LXC veth interfaces
+# pve-guests.target is reached after Proxmox has started all start_on_boot containers
+After=network.target pve-guests.target
+Wants=pve-guests.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/vlan-fixup.sh
+RemainAfterExit=yes
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

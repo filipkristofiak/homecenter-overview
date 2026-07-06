@@ -1,0 +1,14 @@
+---
+nut_mode: netserver # netserver = expose upsd to network (for HA integration etc.)
+
+nut_ups_name: apc-ups
+nut_ups_driver: usbhid-ups # APC UPS connected via USB
+nut_ups_port: auto
+nut_ups_desc: "APC UPS"
+
+nut_listen_address: 0.0.0.0
+nut_listen_port: 3493
+
+# Change these — store secrets in ansible-vault or environment vars in CI
+nut_admin_password: "changeme"
+nut_monitor_password: "changeme"

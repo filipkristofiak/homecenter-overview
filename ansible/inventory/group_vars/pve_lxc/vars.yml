@@ -1,0 +1,5 @@
+# Non-secret group vars for pve_lxc hosts.
+# Secrets are in vault.yml (ansible-vault encrypted):
+#   grafana_admin_password
+#   pve_api_token_value
+

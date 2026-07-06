@@ -1,0 +1,17 @@
+proxmox_endpoint  = "https://pve-01.***:8006/"
+proxmox_api_token = "terraform@pam!terraform-token=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+ssh_public_key    = "ssh-ed25519 AAAA... homelab"
+
+nut_lxc_ip        = "*.*.*.*/24"
+nut_lxc_id        = 200
+
+monitoring_lxc_ip = "*.*.*.*/24"
+monitoring_lxc_id = 201
+
+plex_lxc_ip             = "*.*.*.*/24"
+plex_lxc_id             = 202
+plex_truenas_nfs_server = "*.*.*.*"  # update once TrueNAS VM is deployed
+
+homeautomation_vm_ip  = "*.*.*.*/24"
+homeautomation_vm_id  = 203
+debian12_template_id  = 9000  # Proxmox VM ID of the Debian 12 cloud-init template

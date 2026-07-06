@@ -1,0 +1,16 @@
+---
+- name: Set colored PS1 prompt (blue background, bright white text)
+  lineinfile:
+    path: /root/.bashrc
+    regexp: '^export PS1='
+    line: "export PS1='\\[\\e[48;2;3;36;200m\\e[97m\\]\\u@\\h\\[\\e[0m\\]:\\w\\$ '"
+    state: present
+    create: true
+
+- name: Set vm.swappiness to 10 (prefer RAM over swap for hypervisor workloads)
+  ansible.posix.sysctl:
+    name: vm.swappiness
+    value: "10"
+    state: present
+    sysctl_file: /etc/sysctl.d/99-pve.conf
+    reload: true

@@ -1,0 +1,9 @@
+---
+- name: Update apt cache
+  apt:
+    update_cache: true
+
+- name: Restart plexmediaserver
+  systemd:
+    name: plexmediaserver
+    state: restarted

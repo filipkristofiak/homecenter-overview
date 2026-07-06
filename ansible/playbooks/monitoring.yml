@@ -1,0 +1,8 @@
+---
+- name: Configure monitoring stack on monitoring-01 LXC (pve-01)
+  hosts: monitoring-01
+  become: false # LXC root user - vlan + hv hardening
+
+  roles:
+    - common
+    - monitoring

@@ -1,0 +1,75 @@
+---
+- name: Install NUT packages
+  apt:
+    name:
+      - nut
+      - nut-server
+      - nut-client
+    state: present
+    update_cache: true
+
+- name: Deploy nut.conf (mode)
+  template:
+    src: nut.conf.j2
+    dest: /etc/nut/nut.conf
+    owner: root
+    group: nut
+    mode: "0640"
+  notify: Restart NUT services
+
+- name: Deploy ups.conf (driver config)
+  template:
+    src: ups.conf.j2
+    dest: /etc/nut/ups.conf
+    owner: root
+    group: nut
+    mode: "0640"
+  notify: Restart NUT driver
+
+- name: Deploy upsd.conf (daemon listen config)
+  template:
+    src: upsd.conf.j2
+    dest: /etc/nut/upsd.conf
+    owner: root
+    group: nut
+    mode: "0640"
+  notify: Restart NUT server
+
+- name: Deploy upsd.users (authentication)
+  template:
+    src: upsd.users.j2
+    dest: /etc/nut/upsd.users
+    owner: root
+    group: nut
+    mode: "0640"
+  notify: Restart NUT server
+
+- name: Deploy upsmon.conf (monitor config)
+  template:
+    src: upsmon.conf.j2
+    dest: /etc/nut/upsmon.conf
+    owner: root
+    group: nut
+    mode: "0640"
+  notify: Restart NUT monitor
+
+- name: Enable and start NUT services
+  systemd:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop:
+    - nut-driver@apc-ups
+    - nut-server
+    - nut-monitor
+
+- name: Verify UPS is visible (upsc smoke test)
+  command: upsc {{ nut_ups_name }}@localhost
+  register: upsc_result
+  changed_when: false
+  failed_when: false
+
+- name: Show UPS status
+  debug:
+    msg: "{{ upsc_result.stdout_lines }}"
+  when: upsc_result.stdout_lines is defined

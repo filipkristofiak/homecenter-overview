@@ -1,0 +1,12 @@
+---
+# TrueNAS NFS source — pool: spinners, dataset: media
+plex_truenas_nfs_server: "*.*.*.*"
+plex_truenas_nfs_path: "/mnt/spinners/media"
+plex_nfs_options: "defaults,_netdev,nofail,x-systemd.automount"
+
+plex_media_mount: /mnt/media
+plex_data_dir: /var/lib/plexmediaserver
+
+# Plex apt repo
+plex_apt_key_url: "https://downloads.plex.tv/plex-keys/PlexSign.key"
+plex_apt_repo: "deb https://downloads.plex.tv/repo/deb public main"

@@ -1,0 +1,24 @@
+---
+- name: Deploy vlan-fixup script
+  ansible.builtin.template:
+    src: vlan-fixup.sh.j2
+    dest: /usr/local/sbin/vlan-fixup.sh
+    owner: root
+    group: root
+    mode: "0755"
+  notify: reload systemd
+
+- name: Deploy vlan-fixup systemd service
+  ansible.builtin.template:
+    src: vlan-fixup.service.j2
+    dest: /etc/systemd/system/vlan-fixup.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: reload systemd
+
+- name: Enable vlan-fixup service
+  ansible.builtin.systemd:
+    name: vlan-fixup
+    enabled: true
+    daemon_reload: true

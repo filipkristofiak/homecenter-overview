@@ -1,0 +1,58 @@
+---
+
+- name: Create monitoring directory
+  file:
+    path: "{{ monitoring_dir }}"
+    state: directory
+    mode: "0750"
+
+- name: Deploy docker-compose.yml
+  template:
+    src: docker-compose.yml.j2
+    dest: "{{ monitoring_dir }}/docker-compose.yml"
+    mode: "0640"
+  notify: Restart monitoring stack
+
+- name: Deploy pve-exporter config
+  template:
+    src: pve-exporter.yml.j2
+    dest: "{{ monitoring_dir }}/pve-exporter.yml"
+    mode: "0644"
+  notify: Restart monitoring stack
+
+- name: Deploy prometheus.yml
+  template:
+    src: prometheus.yml.j2
+    dest: "{{ monitoring_dir }}/prometheus.yml"
+    mode: "0644"
+  notify: Restart monitoring stack
+
+- name: Flush handlers (apply config changes before printing URLs)
+  meta: flush_handlers
+
+- name: Start monitoring stack
+  community.docker.docker_compose_v2:
+    project_src: "{{ monitoring_dir }}"
+    state: present
+
+- name: Wait for Grafana to be ready
+  uri:
+    url: "http://localhost:{{ grafana_port }}/api/health"
+    status_code: 200
+  register: grafana_health
+  retries: 10
+  delay: 3
+  until: grafana_health.status == 200
+
+- name: Enforce Grafana admin password
+  community.docker.docker_container_exec:
+    container: grafana
+    command: grafana-cli admin reset-admin-password "{{ grafana_admin_password }}"
+  changed_when: false
+  tags: grafana_password
+
+- name: Print service URLs
+  debug:
+    msg:
+      - "Grafana    → http://{{ ansible_host }}:{{ grafana_port }}"
+      - "Prometheus → http://{{ ansible_host }}:{{ prometheus_port }}"

@@ -1,0 +1,19 @@
+---
+monitoring_dir: /opt/monitoring
+
+grafana_port: 3000
+prometheus_port: 9090
+
+# Prometheus data retention
+prometheus_retention: 30d
+
+node_exporter_port: 9100
+nut_exporter_port: 9199
+pve_exporter_port: 9221
+
+pve_host: "*.*.*.*"
+pve_api_user: "***@pve"
+pve_api_token_name: "***"
+
+# Override this in group_vars or ansible-vault — do not leave as default
+grafana_admin_password: "***"

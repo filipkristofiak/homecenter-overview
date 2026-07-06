@@ -1,0 +1,58 @@
+# Secrets & credentials
+.env
+*.env
+*.secret
+vault_password
+vault_pass.txt
+*_vault_password
+ansible/vault_pass*
+ansible/.vault_pass*
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfstate.*.backup
+.terraform.lock.hcl
+terraform.tfvars
+!terraform.tfvars.example
+*.tfplan
+crash.log
+override.tf
+override.tf.json
+
+# Ansible
+ansible/inventory/hosts_local.yml
+*.retry
+ansible/.password
+
+# SSH keys
+*.pem
+*.key
+id_rsa
+id_ed25519
+
+# macOS
+.DS_Store
+**/.DS_Store
+._*
+
+# Drafts / WIP
+.draft/
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.env
+venv/
+env/
+ENV/
+.venv/

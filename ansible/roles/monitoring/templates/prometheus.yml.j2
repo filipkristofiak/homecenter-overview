@@ -1,0 +1,32 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets:
+          - localhost:9090
+
+  - job_name: node
+    static_configs:
+{% for host in groups['pve_lxc'] %}
+      - targets:
+          - {{ hostvars[host]['ansible_host'] }}:{{ node_exporter_port }}
+        labels:
+          nodename: {{ host }}
+{% endfor %}
+
+  - job_name: nut
+    static_configs:
+      - targets:
+          - {{ hostvars['nut-01']['ansible_host'] }}:{{ nut_exporter_port }}
+
+  - job_name: pve
+    static_configs:
+      - targets:
+          - pve-exporter:9221
+    metrics_path: /pve
+    params:
+      target: ['{{ pve_host }}']
+      module: ['default']

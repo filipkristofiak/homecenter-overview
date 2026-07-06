@@ -1,0 +1,10 @@
+---
+- name: Update apt cache
+  apt:
+    update_cache: true
+
+- name: Restart homeassistant
+  community.docker.docker_compose_v2:
+    project_src: "{{ homeassistant_dir }}"
+    state: present
+    recreate: always

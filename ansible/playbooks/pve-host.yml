@@ -1,0 +1,7 @@
+---
+- name: Configure Proxmox host (pve-01)
+  hosts: proxmox_hosts
+  become: false # root user - vlan + hv hardening
+
+  roles:
+    - pve_host

@@ -1,0 +1,51 @@
+#!/bin/bash
+# Scrapes upsc and writes Prometheus textfile metrics for node-exporter
+set -euo pipefail
+
+UPS="{{ nut_exporter_ups }}"
+OUTFILE="{{ nut_exporter_textfile_dir }}/nut.prom"
+TMPFILE="${OUTFILE}.tmp"
+
+upsc_output=$(upsc "${UPS}@localhost" 2>/dev/null) || {
+  echo "# upsc failed" > "${TMPFILE}"
+  mv "${TMPFILE}" "${OUTFILE}"
+  exit 0
+}
+
+{
+  # ups.status: OL=online, OB=on battery, LB=low battery
+  status=$(echo "${upsc_output}" | awk -F': ' '/^ups\.status:/ {print $2}')
+  echo "# HELP nut_ups_online 1 if UPS is on line power, 0 if on battery"
+  echo "# TYPE nut_ups_online gauge"
+  [[ "${status}" == *"OL"* ]] && echo "nut_ups_online{ups=\"${UPS}\"} 1" || echo "nut_ups_online{ups=\"${UPS}\"} 0"
+
+  echo "# HELP nut_ups_on_battery 1 if UPS is running on battery"
+  echo "# TYPE nut_ups_on_battery gauge"
+  [[ "${status}" == *"OB"* ]] && echo "nut_ups_on_battery{ups=\"${UPS}\"} 1" || echo "nut_ups_on_battery{ups=\"${UPS}\"} 0"
+
+  echo "# HELP nut_battery_low 1 if battery is low"
+  echo "# TYPE nut_battery_low gauge"
+  [[ "${status}" == *"LB"* ]] && echo "nut_battery_low{ups=\"${UPS}\"} 1" || echo "nut_battery_low{ups=\"${UPS}\"} 0"
+
+  # Numeric metrics
+  declare -A metrics=(
+    ["battery.charge"]="nut_battery_charge_percent|Battery charge percentage"
+    ["battery.runtime"]="nut_battery_runtime_seconds|Estimated battery runtime in seconds"
+    ["battery.voltage"]="nut_battery_voltage|Battery voltage"
+    ["ups.load"]="nut_ups_load_percent|UPS load percentage"
+    ["input.voltage"]="nut_input_voltage|Input voltage"
+    ["output.voltage"]="nut_output_voltage|Output voltage"
+  )
+
+  for key in "${!metrics[@]}"; do
+    IFS='|' read -r prom_name help <<< "${metrics[$key]}"
+    value=$(echo "${upsc_output}" | awk -F': ' "/^${key}:/ {print \$2}")
+    if [[ -n "${value}" ]]; then
+      echo "# HELP ${prom_name} ${help}"
+      echo "# TYPE ${prom_name} gauge"
+      echo "${prom_name}{ups=\"${UPS}\"} ${value}"
+    fi
+  done
+} > "${TMPFILE}"
+
+mv "${TMPFILE}" "${OUTFILE}"

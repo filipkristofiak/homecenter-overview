@@ -1,0 +1,8 @@
+---
+- name: Configure home automation stack on homeautomation-01 VM (pve-01)
+  hosts: homeautomation-01
+  become: false # LXC root user - vlan + hv hardening
+
+  roles:
+    - common
+    - homeassistant

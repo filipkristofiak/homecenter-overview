@@ -1,0 +1,24 @@
+---
+- name: Restart NUT driver
+  systemd:
+    name: nut-driver@apc-ups
+    state: restarted
+
+- name: Restart NUT server
+  systemd:
+    name: nut-server
+    state: restarted
+
+- name: Restart NUT monitor
+  systemd:
+    name: nut-monitor
+    state: restarted
+
+- name: Restart NUT services
+  systemd:
+    name: "{{ item }}"
+    state: restarted
+  loop:
+    - nut-driver@apc-ups
+    - nut-server
+    - nut-monitor

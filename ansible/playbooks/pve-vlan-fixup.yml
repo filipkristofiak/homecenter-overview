@@ -1,0 +1,5 @@
+---
+- name: Install vlan-fixup systemd service on Proxmox host
+  hosts: proxmox_hosts
+  roles:
+    - pve_vlan_fixup

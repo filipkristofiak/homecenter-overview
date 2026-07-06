@@ -1,0 +1,58 @@
+---
+- name: Install prerequisites
+  apt:
+    name:
+      - curl
+      - gnupg
+      - nfs-common
+    state: present
+    update_cache: true
+
+- name: Add Plex apt signing key (dearmored)
+  shell: >
+    curl -fsSL {{ plex_apt_key_url }}
+    | gpg --dearmor --yes -o /usr/share/keyrings/plexmediaserver-archive-keyring.gpg
+  args:
+    creates: /usr/share/keyrings/plexmediaserver-archive-keyring.gpg
+
+- name: Add Plex apt repository
+  copy:
+    dest: /etc/apt/sources.list.d/plexmediaserver.list
+    content: "deb [signed-by=/usr/share/keyrings/plexmediaserver-archive-keyring.gpg] https://downloads.plex.tv/repo/deb public main\n"
+    mode: "0644"
+  notify: Update apt cache
+
+- name: Flush handlers (ensure apt cache is refreshed before install)
+  meta: flush_handlers
+
+- name: Install plexmediaserver
+  apt:
+    name: plexmediaserver
+    state: present
+
+- name: Create media mount point
+  file:
+    path: "{{ plex_media_mount }}"
+    state: directory
+    owner: plex
+    group: plex
+    mode: "0755"
+
+- name: Mount TrueNAS NFS share (fstab + immediate mount)
+  mount:
+    src: "{{ plex_truenas_nfs_server }}:{{ plex_truenas_nfs_path }}"
+    path: "{{ plex_media_mount }}"
+    fstype: nfs
+    opts: "{{ plex_nfs_options }}"
+    state: mounted
+  notify: Restart plexmediaserver
+
+- name: Enable and start plexmediaserver
+  systemd:
+    name: plexmediaserver
+    enabled: true
+    state: started
+
+- name: Print Plex Web UI URL
+  debug:
+    msg: "Plex Web UI → http://{{ ansible_host }}:32400/web (first run: claim server from a browser on the same LAN)"

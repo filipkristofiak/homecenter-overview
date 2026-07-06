@@ -1,0 +1,19 @@
+---
+- name: Deploy NUT metrics script
+  template:
+    src: nut-metrics.sh.j2
+    dest: "{{ nut_exporter_script }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Run NUT metrics script once (initial .prom file)
+  command: "{{ nut_exporter_script }}"
+  changed_when: false
+
+- name: Schedule NUT metrics cron job (every minute)
+  cron:
+    name: nut-metrics
+    minute: "*"
+    job: "{{ nut_exporter_script }}"
+    user: root

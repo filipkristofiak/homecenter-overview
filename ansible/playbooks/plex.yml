@@ -1,0 +1,8 @@
+---
+- name: Configure Plex Media Server on plex-01 LXC (pve-01)
+  hosts: plex-01
+  become: false # LXC root user - vlan + hv hardeningv
+
+  roles:
+    - common
+    - plex
