@@ -6,6 +6,30 @@
     state: directory
     mode: "0750"
 
+- name: Create status page directory
+  file:
+    path: "{{ monitoring_dir }}/status"
+    state: directory
+    mode: "0755"
+
+- name: Seed status page placeholder (kept until first publish)
+  copy:
+    dest: "{{ monitoring_dir }}/status/index.html"
+    content: |
+      <!DOCTYPE html>
+      <html><body style="background:#300A24;color:#EEEEEC;font-family:monospace;padding:24px">
+      <p>No status published yet. From your Mac: <code>python tools/pve/status.py --publish</code></p>
+      </body></html>
+    force: false
+    mode: "0644"
+
+- name: Deploy status page nginx config
+  template:
+    src: status-nginx.conf.j2
+    dest: "{{ monitoring_dir }}/status-nginx.conf"
+    mode: "0644"
+  notify: Restart monitoring stack
+
 - name: Deploy docker-compose.yml
   template:
     src: docker-compose.yml.j2
@@ -24,6 +48,13 @@
   template:
     src: prometheus.yml.j2
     dest: "{{ monitoring_dir }}/prometheus.yml"
+    mode: "0644"
+  notify: Restart monitoring stack
+
+- name: Deploy Prometheus alert rules
+  template:
+    src: alerts.yml.j2
+    dest: "{{ monitoring_dir }}/alerts.yml"
     mode: "0644"
   notify: Restart monitoring stack
 
@@ -56,3 +87,4 @@
     msg:
       - "Grafana    → http://{{ ansible_host }}:{{ grafana_port }}"
       - "Prometheus → http://{{ ansible_host }}:{{ prometheus_port }}"
+      - "Status     → http://{{ ansible_host }}:{{ status_page_port }}/status"

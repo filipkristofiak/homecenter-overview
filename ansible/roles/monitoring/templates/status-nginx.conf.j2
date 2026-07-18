@@ -1,0 +1,18 @@
+server {
+    listen 80;
+    server_name _;
+
+    # landing → status page (room for more subpages / reverse proxies later)
+    location = / {
+        return 302 /status/;
+    }
+
+    location = /status {
+        return 302 /status/;
+    }
+
+    location /status/ {
+        alias /usr/share/nginx/html/status/;
+        index index.html;
+    }
+}

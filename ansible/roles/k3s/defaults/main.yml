@@ -1,0 +1,5 @@
+---
+k3s_channel: stable # release channel for the install script (stable/latest/v1.33)
+k3s_data_disk: /dev/sdb # scsi1 from Terraform — 150 GB PV data disk
+k3s_data_mount: /var/lib/rancher/k3s/storage # default local-path provisioner dir
+k3s_kubeconfig_local_path: "~/.kube/k3s-01.yaml" # written on the Ansible control machine

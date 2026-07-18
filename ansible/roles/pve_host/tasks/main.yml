@@ -14,3 +14,43 @@
     state: present
     sysctl_file: /etc/sysctl.d/99-pve.conf
     reload: true
+
+- name: Install NVMe health monitoring packages
+  apt:
+    name:
+      - smartmontools
+      - nvme-cli
+    state: present
+    update_cache: true
+
+- name: Enable smartd (periodic SMART self-checks, mails root on failure)
+  systemd:
+    name: smartmontools
+    enabled: true
+    state: started
+
+- name: Deploy NVMe metrics collector script
+  template:
+    src: nvme-metrics.j2
+    dest: /usr/local/bin/nvme-metrics
+    mode: "0755"
+
+- name: Deploy nvme-metrics systemd units
+  copy:
+    src: "{{ item }}"
+    dest: "/etc/systemd/system/{{ item }}"
+    mode: "0644"
+  loop:
+    - nvme-metrics.service
+    - nvme-metrics.timer
+
+- name: Enable nvme-metrics timer
+  systemd:
+    name: nvme-metrics.timer
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Run initial NVMe metrics collection
+  command: /usr/local/bin/nvme-metrics
+  changed_when: false

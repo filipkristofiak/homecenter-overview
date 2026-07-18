@@ -1,0 +1,10 @@
+---
+- name: Provision single-node k3s cluster on k3s-01 VM (pve-01)
+  hosts: k3s-01
+  become: false # VM root user — no sudo needed
+
+  # Note: common role deliberately omitted — it installs Docker, which is
+  # redundant next to k3s's containerd. The k3s role carries common's QoL tasks.
+  roles:
+    - k3s
+    - node_exporter

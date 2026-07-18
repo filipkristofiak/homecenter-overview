@@ -1,7 +1,8 @@
 ---
 - name: Configure Proxmox host (pve-01)
   hosts: proxmox_hosts
-  become: false # root user - vlan + hv hardening
+  become: false # root user
 
   roles:
+    - node_exporter # also defines node_exporter_textfile_dir, used by the NVMe collector
     - pve_host

@@ -13,6 +13,7 @@ ansible/.vault_pass*
 *.tfstate
 *.tfstate.backup
 *.tfstate.*.backup
+.terraform.tfstate.lock.info
 .terraform.lock.hcl
 terraform.tfvars
 !terraform.tfvars.example
@@ -39,6 +40,9 @@ id_ed25519
 
 # Drafts / WIP
 .draft/
+
+# Generated status page (deployed, not tracked)
+tools/pve/web/public/
 
 # Editors
 .vscode/

@@ -1,0 +1,97 @@
+#!/usr/bin/env python3
+"""Collect NVMe SMART health metrics for the node-exporter textfile collector.
+
+Managed by Ansible (pve_host role). Run periodically by nvme-metrics.timer.
+"""
+import json
+import os
+import subprocess
+import tempfile
+
+TEXTFILE_DIR = "{{ node_exporter_textfile_dir }}"
+OUT_PATH = os.path.join(TEXTFILE_DIR, "nvme.prom")
+
+# NVMe spec: one data unit = 1000 512-byte sectors
+DATA_UNIT_BYTES = 512000
+
+GAUGES = [
+    ("critical_warning", "nvme_critical_warning",
+     "Critical warning bitfield from the SMART health log (0 = healthy)"),
+    ("avail_spare", "nvme_available_spare_percent",
+     "Remaining spare capacity as reported by the drive"),
+    ("spare_thresh", "nvme_available_spare_threshold_percent",
+     "Spare capacity level below which the drive raises a critical warning"),
+    ("percent_used", "nvme_percentage_used_percent",
+     "Vendor estimate of consumed endurance (may exceed 100)"),
+]
+
+COUNTERS = [
+    ("data_units_read", "nvme_data_units_read_total",
+     "Data units read (1 unit = 512000 bytes)"),
+    ("data_units_written", "nvme_data_units_written_total",
+     "Data units written (1 unit = 512000 bytes)"),
+    ("media_errors", "nvme_media_errors_total",
+     "Unrecovered media and data integrity errors"),
+    ("num_err_log_entries", "nvme_error_log_entries_total",
+     "Entries in the controller error information log"),
+    ("unsafe_shutdowns", "nvme_unsafe_shutdowns_total", "Unsafe shutdowns"),
+    ("power_cycles", "nvme_power_cycles_total", "Power cycles"),
+    ("power_on_hours", "nvme_power_on_hours_total", "Power-on hours"),
+]
+
+
+def nvme_json(args):
+    return json.loads(subprocess.check_output(["nvme"] + args + ["-o", "json"]))
+
+
+def collect_devices():
+    devices = []
+    for dev in nvme_json(["list"]).get("Devices", []):
+        path = dev["DevicePath"]
+        labels = 'device="%s",model="%s",serial="%s"' % (
+            os.path.basename(path),
+            dev.get("ModelNumber", "unknown").strip(),
+            dev.get("SerialNumber", "unknown").strip(),
+        )
+        devices.append((labels, nvme_json(["smart-log", path])))
+    return devices
+
+
+def main():
+    devices = collect_devices()
+    lines = []
+
+    def emit(name, help_text, metric_type, samples):
+        lines.append("# HELP %s %s" % (name, help_text))
+        lines.append("# TYPE %s %s" % (name, metric_type))
+        for labels, value in samples:
+            # concatenated so a brace-percent sequence never appears in this
+            # Jinja-templated file
+            lines.append(name + "{" + labels + "} " + str(value))
+
+    for key, name, help_text in GAUGES:
+        emit(name, help_text, "gauge", [(l, log[key]) for l, log in devices])
+    for key, name, help_text in COUNTERS:
+        emit(name, help_text, "counter", [(l, log[key]) for l, log in devices])
+
+    # nvme-cli reports composite temperature in Kelvin
+    emit("nvme_temperature_celsius", "Composite temperature", "gauge",
+         [(l, log["temperature"] - 273 if log["temperature"] > 200
+           else log["temperature"]) for l, log in devices])
+
+    emit("nvme_written_bytes_total", "Bytes written (data units * 512000)",
+         "counter", [(l, log["data_units_written"] * DATA_UNIT_BYTES)
+                     for l, log in devices])
+    emit("nvme_read_bytes_total", "Bytes read (data units * 512000)",
+         "counter", [(l, log["data_units_read"] * DATA_UNIT_BYTES)
+                     for l, log in devices])
+
+    fd, tmp = tempfile.mkstemp(dir=TEXTFILE_DIR, suffix=".tmp")
+    with os.fdopen(fd, "w") as f:
+        f.write("\n".join(lines) + "\n")
+    os.chmod(tmp, 0o644)
+    os.replace(tmp, OUT_PATH)
+
+
+if __name__ == "__main__":
+    main()

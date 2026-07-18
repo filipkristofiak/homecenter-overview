@@ -17,7 +17,7 @@ variable "ssh_public_key" {
 variable "nut_lxc_ip" {
   description = "Static IPv4 address for the NUT LXC container (CIDR), on VLAN *"
   type        = string
-  default     = *.*.*.*/24"
+  default     = "*.*.*.*/24"
 }
 
 variable "nut_lxc_id" {
@@ -66,6 +66,18 @@ variable "homeautomation_vm_id" {
   description = "Proxmox VM ID for the home automation VM"
   type        = number
   default     = 203
+}
+
+variable "k3s_vm_ip" {
+  description = "Static IPv4 address for the k3s node VM (CIDR), on VLAN *"
+  type        = string
+  default     = "*.*.*.*/24"
+}
+
+variable "k3s_vm_id" {
+  description = "Proxmox VM ID for the k3s node VM"
+  type        = number
+  default     = 204
 }
 
 variable "debian12_template_id" {

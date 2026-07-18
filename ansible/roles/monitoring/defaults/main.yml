@@ -3,6 +3,7 @@ monitoring_dir: /opt/monitoring
 
 grafana_port: 3000
 prometheus_port: 9090
+status_page_port: 80
 
 # Prometheus data retention
 prometheus_retention: 30d

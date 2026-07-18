@@ -163,6 +163,91 @@ resource "proxmox_virtual_environment_vm" "vm_homeautomation" {
 }
 
 # -----------------------------------------------------------------------------
+# k3s Node VM — pve-01
+#
+# Single-node k3s cluster for stable home services and data-platform learning
+# projects (Postgres, Redpanda, Dagster, pandas jobs). Design and sizing:
+# docs/architecture/k3s-node-plan.md
+#
+# Cloned from the same Debian 12 cloud-init template as homeautomation-01
+# (see that resource's comment for template creation steps).
+#
+# Disks:
+#   scsi0  40 GB — OS + k3s + container images
+#   scsi1 150 GB — persistent volumes (local-path provisioner), thin-provisioned;
+#                  Ansible formats and mounts it at /var/lib/rancher/k3s/storage
+#
+# No CPU affinity: homeautomation-01 owns E-cores 12–19; k3s gets scheduler
+# access to P-cores for bursty pandas workloads.
+# -----------------------------------------------------------------------------
+
+resource "proxmox_virtual_environment_vm" "vm_k3s" {
+  description = "k3s single-node cluster – home services + data platform learning (VLAN *)"
+  node_name   = "pve-01"
+  vm_id       = var.k3s_vm_id
+  name        = "k3s-01"
+
+  tags = ["k3s", "kubernetes", "infra"]
+
+  started = true
+  on_boot = true
+
+  clone {
+    vm_id = var.debian12_template_id
+    full  = true
+  }
+
+  cpu {
+    cores = 8
+    type  = "host" # expose AVX2/AVX-512 for numpy/pandas; fine on a single host (no live migration)
+  }
+
+  memory {
+    dedicated = 16384 # no ballooning — k8s memory accounting needs stable totals
+  }
+
+  disk {
+    datastore_id = "local-lvm"
+    interface    = "scsi0"
+    size         = 40 # OS + k3s + container images
+    discard      = "on"
+    file_format  = "raw"
+  }
+
+  disk {
+    datastore_id = "local-lvm"
+    interface    = "scsi1"
+    size         = 150 # PV data disk (local-path provisioner) — thin, grow-only
+    discard      = "on"
+    file_format  = "raw"
+  }
+
+  initialization {
+    ip_config {
+      ipv4 {
+        address = var.k3s_vm_ip
+        gateway = "*.*.*.*"
+      }
+    }
+
+    user_account {
+      username = "root"
+      keys     = [var.ssh_public_key]
+    }
+  }
+
+  network_device {
+    bridge  = "vmbr0"
+    model   = "virtio"
+    vlan_id = *
+  }
+
+  agent {
+    enabled = true
+  }
+}
+
+# -----------------------------------------------------------------------------
 # Monitoring LXC — pve-01
 #
 # Runs Grafana and Prometheus as Docker containers managed by docker-compose.

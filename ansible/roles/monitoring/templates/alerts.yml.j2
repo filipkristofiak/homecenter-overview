@@ -1,0 +1,54 @@
+groups:
+  - name: nvme-health
+    rules:
+      - alert: NvmeCriticalWarning
+        expr: nvme_critical_warning > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "NVMe {{ '{{ $labels.device }}' }} on {{ '{{ $labels.nodename }}' }} reports critical warning bitfield {{ '{{ $value }}' }}"
+          description: "The drive itself has flagged a problem (spare low, reliability degraded, read-only mode, or overheating). Check `nvme smart-log` on the host."
+
+      - alert: NvmeWearHigh
+        expr: nvme_percentage_used_percent >= 80
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "NVMe {{ '{{ $labels.device }}' }} has consumed {{ '{{ $value }}' }}% of rated endurance"
+          description: "Plan a replacement before wear reaches 100%."
+
+      - alert: NvmeSpareLow
+        expr: nvme_available_spare_percent <= nvme_available_spare_threshold_percent + 5
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "NVMe {{ '{{ $labels.device }}' }} spare capacity at {{ '{{ $value }}' }}%, near drive threshold"
+          description: "Remapped-block reserve is nearly exhausted — the flash is failing. Replace the drive."
+
+      - alert: NvmeMediaErrors
+        expr: increase(nvme_media_errors_total[24h]) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: "NVMe {{ '{{ $labels.device }}' }} logged new media/data integrity errors in the last 24h"
+          description: "Unrecovered errors mean data loss is possible. Verify backups and plan replacement."
+
+      - alert: NvmeHighTemperature
+        expr: nvme_temperature_celsius > 70
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "NVMe {{ '{{ $labels.device }}' }} at {{ '{{ $value }}' }}°C for 15m"
+          description: "Sustained heat accelerates wear and triggers throttling. Check case airflow / heatsink."
+
+      - alert: NvmeMetricsStale
+        expr: time() - node_textfile_mtime_seconds{file="nvme.prom"} > 1800
+        labels:
+          severity: warning
+        annotations:
+          summary: "NVMe metrics on {{ '{{ $labels.nodename }}' }} not updated for 30m"
+          description: "The nvme-metrics timer on the Proxmox host is failing — check `systemctl status nvme-metrics.service`."

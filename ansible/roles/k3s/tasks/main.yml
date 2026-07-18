@@ -1,0 +1,114 @@
+---
+# QoL subset of the common role. The full common role is intentionally not
+# applied here: it installs Docker, and a k3s node runs its own containerd —
+# two container runtimes on one host is confusion waiting to happen.
+
+- name: Set colored PS1 prompt (blue background, bright white text)
+  lineinfile:
+    path: /root/.bashrc
+    regexp: '^export PS1='
+    line: "export PS1='\\[\\e[48;2;3;36;200m\\e[97m\\]\\u@\\h\\[\\e[0m\\]:\\w\\$ '"
+    state: present
+    create: true
+
+- name: Disable SSH reverse DNS lookup (eliminates ~20s login delay)
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?UseDNS'
+    line: 'UseDNS no'
+    state: present
+  notify: Restart sshd
+
+- name: Install prerequisites
+  apt:
+    name:
+      - curl
+      - ca-certificates
+      - qemu-guest-agent # not in the Debian genericcloud image; Proxmox needs it for IP/status reporting
+      - nfs-common # future: TrueNAS NFS storage class (democratic-csi)
+      - open-iscsi # future: TrueNAS iSCSI storage class (democratic-csi)
+    state: present
+    update_cache: true
+
+- name: Enable and start qemu-guest-agent
+  systemd:
+    name: qemu-guest-agent
+    enabled: true
+    state: started
+
+# --- PV data disk (scsi1) -> local-path provisioner directory ---------------
+
+- name: Create ext4 filesystem on PV data disk
+  filesystem:
+    fstype: ext4
+    dev: "{{ k3s_data_disk }}"
+
+- name: Mount PV data disk at local-path provisioner directory (fstab + immediate mount)
+  mount:
+    src: "{{ k3s_data_disk }}"
+    path: "{{ k3s_data_mount }}"
+    fstype: ext4
+    opts: defaults,noatime
+    state: mounted
+
+# --- k3s install -------------------------------------------------------------
+
+- name: Create k3s config directory
+  file:
+    path: /etc/rancher/k3s
+    state: directory
+    mode: "0755"
+
+- name: Write k3s config
+  copy:
+    dest: /etc/rancher/k3s/config.yaml
+    mode: "0644"
+    content: |
+      node-name: {{ inventory_hostname }}
+      tls-san:
+        - {{ ansible_host }}
+  notify: Restart k3s
+
+- name: Download k3s install script
+  get_url:
+    url: https://get.k3s.io
+    dest: /usr/local/bin/k3s-install.sh
+    mode: "0755"
+
+- name: Install k3s server (single node)
+  command: /usr/local/bin/k3s-install.sh
+  environment:
+    INSTALL_K3S_CHANNEL: "{{ k3s_channel }}"
+  args:
+    creates: /usr/local/bin/k3s
+
+- name: Wait for node to become Ready
+  command: >
+    k3s kubectl wait --for=condition=Ready
+    node/{{ inventory_hostname }} --timeout=300s
+  changed_when: false
+
+# --- kubeconfig on the control machine ---------------------------------------
+
+- name: Read kubeconfig from node
+  slurp:
+    src: /etc/rancher/k3s/k3s.yaml
+  register: k3s_kubeconfig
+
+- name: Ensure ~/.kube exists on control machine
+  file:
+    path: "{{ k3s_kubeconfig_local_path | dirname }}"
+    state: directory
+    mode: "0755"
+  delegate_to: localhost
+
+- name: Write kubeconfig on control machine (server IP substituted)
+  copy:
+    dest: "{{ k3s_kubeconfig_local_path }}"
+    content: "{{ k3s_kubeconfig.content | b64decode | replace('127.0.0.1', ansible_host) }}"
+    mode: "0600"
+  delegate_to: localhost
+
+- name: Print kubectl usage
+  debug:
+    msg: "kubectl --kubeconfig {{ k3s_kubeconfig_local_path }} get nodes   (or export KUBECONFIG={{ k3s_kubeconfig_local_path }})"

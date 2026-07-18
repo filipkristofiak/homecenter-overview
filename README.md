@@ -116,6 +116,9 @@ exporter authenticates with a revocable read-only token rather than a user passw
   network-wide and feeding Prometheus
 - **Observability**: the Prometheus/Grafana stack described above, monitoring
   everything including itself
+- **Kubernetes**: a single-node k3s cluster in a dedicated VM — a landing zone for
+  stable home services and data-platform learning projects (Postgres, Redpanda,
+  Dagster), with PVs on their own disk via the local-path provisioner
 
 ## Operations
 
@@ -136,8 +139,9 @@ the tools are interchangeable.
 
 ## Where it's heading
 
-Short-lived, spawn-and-destroy k3s and Docker Compose labs on top of the same
-Terraform/Ansible base; Proxmox Backup Server on repurposed hardware; VPN-gated
+In-cluster workloads for the k3s node — Postgres, Redpanda (memory-capped), and
+Dagster, tracked as code in this repo; a TrueNAS-backed storage class via
+democratic-csi; Proxmox Backup Server on repurposed hardware; VPN-gated
 remote access; and gradually pushing the remaining hand-managed pieces (NAS
 configuration via its REST API, host network config) into code.
 
@@ -150,4 +154,4 @@ configuration via its REST API, host network config) into code.
 - [IP addressing](docs/network/ip-addressing.md) - redacted
 - [Hardware inventory](docs/infrastructure/hardware_inventory.md) - redacted
 - [Network diagram](docs/network/diagram.md) - redacted
-- Runbooks: [Home Automation](docs/runbooks/homeautomation-vm.md) · [Plex](docs/runbooks/plex-lxc.md) · [Monitoring](docs/runbooks/monitoring-lxc.md) · [NUT](docs/runbooks/nut-server-lxc.md) · [TrueNAS](docs/runbooks/truenas-init-notes.md)
+- Runbooks: [Home Automation](docs/runbooks/homeautomation-vm.md) · [Plex](docs/runbooks/plex-lxc.md) · [Monitoring](docs/runbooks/monitoring-lxc.md) · [NUT](docs/runbooks/nut-server-lxc.md) · [TrueNAS](docs/runbooks/truenas-init-notes.md) · [NVMe health](docs/runbooks/pve-01-nvme-health.md) · [k3s](docs/runbooks/k3s-vm.md)

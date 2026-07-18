@@ -1,0 +1,6 @@
+[Unit]
+Description=Collect NVMe SMART metrics for node-exporter
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/nvme-metrics
