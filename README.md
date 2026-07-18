@@ -8,6 +8,12 @@ runbooks
 The lab exists for two reasons: to run real services for my home, and to be a permanent
 playground for infrastructure and data-platform skills.
 
+<p align="center">
+  <a href="docs/architecture/homelab-architecture.drawio.png">
+    <img src="docs/architecture/homelab-architecture.drawio.png" alt="Homelab architecture diagram" width="850">
+  </a>
+</p>
+
 ---
 
 ## Project Structure
@@ -139,6 +145,7 @@ configuration via its REST API, host network config) into code.
 
 ## Docs
 
+- [Architecture diagram](docs/architecture/homelab-architecture.drawio.png) — editable in draw.io (embedded XML)
 - [Naming conventions](docs/architecture/naming.md)
 - [IP addressing](docs/network/ip-addressing.md) - redacted
 - [Hardware inventory](docs/infrastructure/hardware_inventory.md) - redacted
