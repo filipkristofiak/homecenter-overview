@@ -151,7 +151,8 @@ configuration via its REST API, host network config) into code.
 
 - [Architecture diagram](docs/architecture/homelab-architecture.drawio.png) — editable in draw.io (embedded XML)
 - [Naming conventions](docs/architecture/naming.md)
+- [Pinned image versions](docs/architecture/image-versions.md)
 - [IP addressing](docs/network/ip-addressing.md) - redacted
 - [Hardware inventory](docs/infrastructure/hardware_inventory.md) - redacted
 - [Network diagram](docs/network/diagram.md) - redacted
-- Runbooks: [Home Automation](docs/runbooks/homeautomation-vm.md) · [Plex](docs/runbooks/plex-lxc.md) · [Monitoring](docs/runbooks/monitoring-lxc.md) · [NUT](docs/runbooks/nut-server-lxc.md) · [TrueNAS](docs/runbooks/truenas-init-notes.md) · [NVMe health](docs/runbooks/pve-01-nvme-health.md) · [k3s](docs/runbooks/k3s-vm.md)
+- Runbooks: [Home Automation](docs/runbooks/homeautomation-vm.md) · [Plex](docs/runbooks/plex-lxc.md) · [Monitoring](docs/runbooks/monitoring-lxc.md) · [NUT](docs/runbooks/nut-server-lxc.md) · [TrueNAS](docs/runbooks/truenas-init-notes.md) · [NVMe health](docs/runbooks/pve-01-nvme-health.md) · [k3s](docs/runbooks/k3s-vm.md) · [Image version pinning](docs/runbooks/image-version-pinning.md)

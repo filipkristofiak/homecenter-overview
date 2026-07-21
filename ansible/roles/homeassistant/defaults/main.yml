@@ -1,2 +1,5 @@
 ---
 homeassistant_dir: /opt/homeassistant
+
+# Pinned image tag — bump deliberately, don't track stable
+homeassistant_image_tag: "2026.5.4"

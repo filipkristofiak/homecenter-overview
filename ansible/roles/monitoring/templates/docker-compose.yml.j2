@@ -1,6 +1,6 @@
 services:
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:{{ prometheus_image_tag }}
     container_name: prometheus
     restart: unless-stopped
     ports:
@@ -16,7 +16,7 @@ services:
       - --web.enable-lifecycle
 
   pve-exporter:
-    image: prompve/prometheus-pve-exporter:latest
+    image: prompve/prometheus-pve-exporter:{{ pve_exporter_image_tag }}
     container_name: pve-exporter
     restart: unless-stopped
     ports:
@@ -25,7 +25,7 @@ services:
       - ./pve-exporter.yml:/etc/prometheus/pve.yml:ro
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:{{ grafana_image_tag }}
     container_name: grafana
     restart: unless-stopped
     ports:
@@ -38,7 +38,7 @@ services:
       - prometheus
 
   status-page:
-    image: nginx:alpine
+    image: nginx:{{ nginx_image_tag }}
     container_name: status-page
     restart: unless-stopped
     ports:

@@ -20,8 +20,8 @@
     - config
 
 - name: Deploy docker-compose.yml
-  copy:
-    src: docker-compose.yml
+  template:
+    src: docker-compose.yml.j2
     dest: "{{ homeassistant_dir }}/docker-compose.yml"
     mode: "0640"
   notify: Restart homeassistant

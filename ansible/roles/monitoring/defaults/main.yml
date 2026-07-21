@@ -18,3 +18,9 @@ pve_api_token_name: "***"
 
 # Override this in group_vars or ansible-vault — do not leave as default
 grafana_admin_password: "***"
+
+# Pinned image tags — bump deliberately, don't track latest/stable
+prometheus_image_tag: "v3.11.1"
+pve_exporter_image_tag: "3.9.0"
+grafana_image_tag: "12.4.2"
+nginx_image_tag: "1.31.2-alpine"
