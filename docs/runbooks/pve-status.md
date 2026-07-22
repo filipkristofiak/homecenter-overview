@@ -1,16 +1,17 @@
 # pve-01 resource overview script
 
 `tools/pve/status.py` — runs from your Mac, SSHes into pve-01, and renders
-a live memory/CPU table for all LXCs and VMs.
+a live memory/CPU table for all LXCs and VMs. See [tools/pve/README.md](../../tools/pve/README.md)
+for quick setup/usage.
 
 ---
 
 ## Setup
 
 ```bash
-python3 -m venv tools/.venv
-source tools/.venv/bin/activate
-pip install rich
+python3 -m venv tools/pve/.venv
+source tools/pve/.venv/bin/activate
+pip install -r tools/pve/requirements.txt
 ```
 
 ---
@@ -18,7 +19,7 @@ pip install rich
 ## Usage
 
 ```bash
-source tools/.venv/bin/activate
+source tools/pve/.venv/bin/activate
 python tools/pve/status.py             # render in terminal
 python tools/pve/status.py --html out.html   # also export as HTML
 python tools/pve/status.py --publish   # push HTML to the monitoring-01 status page

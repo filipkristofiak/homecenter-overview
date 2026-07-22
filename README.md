@@ -39,13 +39,17 @@ homecenter/
 │   
 ├── network/
 │   └── unifi/
-│       ├── configs/              # JSON exports (device, networks, firewall, wlan, ports)
-│       ├── fetch_config.py       # snapshots UniFi config via API # TODO: move to tools
-│       └── README.md             # setup and usage
+│       └── configs/              # JSON exports (device, networks, firewall, wlan, ports)
 |
-└── tools/                  
-    └── pve/
-        └── status.py
+└── tools/
+    ├── pve/
+    │   ├── status.py             # resource-overview TUI
+    │   ├── requirements.txt
+    │   └── README.md             # setup and usage
+    └── unifi/
+        ├── fetch_config.py       # snapshots UniFi config via API
+        ├── requirements.txt
+        └── README.md             # setup and usage
 ```
 
 ---

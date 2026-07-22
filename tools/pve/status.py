@@ -25,7 +25,7 @@ try:
     from rich.text import Text
     from rich import box
 except ImportError:
-    print("Missing dependencies. Run: pip install rich")
+    print("Missing dependencies. Run: pip install -r requirements.txt")
     sys.exit(1)
 
 PVE_HOST = "***@*.*.*.*" # user@host
@@ -35,7 +35,7 @@ MONITORING_HOST = "***@*.*.*.*" # user@host
 PUBLISH_DEST = "/opt/monitoring/status/index.html"
 STATUS_URL = "http://*.*.*.*/status"
 
-# written by the nvme-metrics timer on pve-01
+# written by the nvme-metrics timer on pve-01 (see docs/runbooks/pve-01-nvme-health.md)
 NVME_PROM = "/var/lib/prometheus/node-exporter/nvme.prom"
 NVME_STALE_MIN = 30
 # rated endurance per model — only used for the "written / rated" figure

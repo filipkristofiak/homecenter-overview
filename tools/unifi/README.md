@@ -6,13 +6,13 @@ Commit the output to git and use `git diff` to track changes over time.
 ## Setup
 
 ```bash
-cd network/
+cd tools/unifi/
 /opt/homebrew/bin/python3 -m venv .venv
 source .venv/bin/activate
 python --version   # should show 3.14.*
-pip install requests python-dotenv
+pip install -r requirements.txt
 deactivate
-cd ..
+cd ../..
 ```
 
 Add to your `.env`:
@@ -21,7 +21,7 @@ Add to your `.env`:
 UNIFI_HOST=https://192.168.1.1
 UNIFI_API_KEY=your-key-here
 UNIFI_SITE=default
-UNIFI_OUTPUT_DIR=configs/unifi   # optional, this is the default
+UNIFI_OUTPUT_DIR=network/unifi/configs   # optional, this is the default
 ```
 
 ### Generating the API key
@@ -35,10 +35,9 @@ Navigate to:
 ## Usage
 
 ```bash
-cd network/
-source .venv/bin/activate
-cd ..
-python network/unifi/fetch_config.py
+source tools/unifi/.venv/bin/activate
+python tools/unifi/fetch_config.py
+deactivate
 ```
 
 ## Output files
@@ -70,9 +69,9 @@ Masking is recursive -- works at any nesting depth across all endpoints.
 ## Git workflow
 
 ```bash
-python scripts/unifi/fetch_config.py
-git diff configs/unifi/
-git add configs/unifi/
+python tools/unifi/fetch_config.py
+git diff network/unifi/configs/
+git add network/unifi/configs/
 git commit -m "chore: unifi config snapshot $(date +%Y-%m-%d)"
 ```
 

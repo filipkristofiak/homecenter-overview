@@ -3,7 +3,7 @@
 Not a strict runbook. Things to keep in mind when provisioning new services on pve-01
 so the network side doesn't become a surprise later.
 
-> The authoritative UniFi config snapshots live in `network/unifi/configs/` (fetched via `network/unifi/fetch_config.py`).
+> The authoritative UniFi config snapshots live in `network/unifi/configs/` (fetched via `tools/unifi/fetch_config.py`).
 > This doc reflects the current state: all-UniFi switches, zone-based firewall.
 
 ---

@@ -5,16 +5,16 @@ Fetches legacy REST API endpoints and saves them as JSON files.
 Run periodically and commit to git — use `git diff` to track changes.
 
 Usage:
-    python scripts/unifi/fetch_config.py
+    python tools/unifi/fetch_config.py
 
 Requirements:
-    pip install requests python-dotenv
+    pip install -r requirements.txt
 
 .env keys:
     UNIFI_HOST           e.g. https://192.168.1.1  (no trailing slash)
     UNIFI_API_KEY        generated at Network > Settings > Control Plane > Integrations
     UNIFI_SITE           site short name, usually "default"
-    UNIFI_OUTPUT_DIR     path to output directory, default: configs/unifi
+    UNIFI_OUTPUT_DIR     path to output directory, default: network/unifi/configs
 """
 
 import json
@@ -27,7 +27,7 @@ try:
     import requests
     from dotenv import load_dotenv
 except ImportError:
-    print("Missing dependencies. Run: pip install requests python-dotenv")
+    print("Missing dependencies. Run: pip install -r requirements.txt")
     sys.exit(1)
 
 # ── Config ────────────────────────────────────────────────────────────────────
@@ -37,11 +37,26 @@ load_dotenv()
 HOST        = os.getenv("UNIFI_HOST", "https://*.*.*.*").rstrip("/")
 API_KEY     = os.getenv("UNIFI_API_KEY", "")
 SITE        = os.getenv("UNIFI_SITE", "default")
-OUTPUT_DIR  = Path(os.getenv("UNIFI_OUTPUT_DIR", "configs/unifi"))
+OUTPUT_DIR  = Path(os.getenv("UNIFI_OUTPUT_DIR", "network/unifi/configs"))
 
 if not API_KEY:
     print("Error: UNIFI_API_KEY not set in .env")
     sys.exit(1)
+
+
+
+# collect WLAN passwords to mask
+WLAN_KEYS = [
+    "WLAN_PASSWORD_1",
+    "WLAN_PASSWORD_2",
+    "WLAN_PASSWORD_3",
+    "WLAN_PASSWORD_4"
+]
+WLAN_PASSWORDS: dict[str, str] = {}
+for key in WLAN_KEYS:
+    val = os.getenv(key, "")
+    if val:
+        WLAN_PASSWORDS[val] = f"${key}"
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
@@ -75,8 +90,8 @@ def mask_value(field: str) -> str:
     making it easy to identify what was redacted in a diff.
     """
     return f"<REDACTED:{field}>"
- 
- 
+
+
 def mask_secrets(obj: object) -> object:
     """
     Recursively walk the JSON structure and redact all x_-prefixed fields.
@@ -119,7 +134,7 @@ def discover_site_uuid(session: requests.Session) -> str | None:
 # ---------------------------------------------------------------------------
 # Filters
 # ---------------------------------------------------------------------------
- 
+
 def filter_dhcp_reservations(data: dict) -> dict:
     """Keep only clients with a fixed IP reservation."""
     filtered = [
@@ -142,7 +157,7 @@ def save(data: dict, name: str, out_path: Path) -> tuple[bool, str]:
         return True, f"({count} items)"
     except Exception as e:
         return False, str(e)
- 
+
 
 def main():
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -195,7 +210,7 @@ def main():
         except Exception as e:
             print(f"  !!  {name:<20} -> {e}")
             errors.append((name, str(e)))
- 
+
     # metadata
     meta = {
         "fetched_at": datetime.now(timezone.utc).isoformat(),
@@ -208,14 +223,14 @@ def main():
     with open(OUTPUT_DIR / "unifi.meta.json", "w") as f:
         json.dump(meta, f, indent=2)
         f.write("\n")
- 
+
     print()
     print(f"Done: {success}/{len(all_endpoints)} endpoints saved to {OUTPUT_DIR}/")
- 
+
     if errors:
         print(f"Errors: {[e[0] for e in errors]}")
         sys.exit(1)
- 
- 
+
+
 if __name__ == "__main__":
     main()
