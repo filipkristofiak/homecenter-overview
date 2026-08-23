@@ -26,7 +26,7 @@ ansible/
     tasks/main.yml          install Docker CE + Compose plugin, deploy configs, start stack
     handlers/main.yml       apt cache refresh + stack recreate on config change
     templates/
-      docker-compose.yml.j2  Prometheus (9090) + Grafana (3000), named volumes
+      docker-compose.yml.j2  Prometheus (9090) + Grafana (3000) + status-page nginx (80, /status), named volumes
       prometheus.yml.j2      scrape config (add targets here as services grow)
 ```
 
@@ -82,7 +82,7 @@ Or open in a browser:
 | Decision | Value | Reason |
 |---|---|---|
 | Container type | Privileged LXC | Docker daemon requires full cgroup and netns access |
-| CT ID | `201` | Before plex-01 (202); change in `terraform.tfvars` if taken |
+| CT ID | `201` | After nut-01 (200); change in `terraform.tfvars` if taken |
 | Hostname | `monitoring-01` | Follows `<service>-XX` naming convention |
 | IP | `*.*.*.*/24` | VLAN 27, static; next free after nut-01 (.10) |
 | Gateway | `*.*.*.1` | VLAN 27 gateway |
@@ -118,7 +118,7 @@ curl -X POST http://*.*.*.*:9090/-/reload
 ## Pre-flight checklist
 
 - [ ] Debian 12 template downloaded on pve-01: `pveam update && pveam download local debian-12-standard_12.7-1_amd64.tar.zst`
-- [ ] CT ID `202` is free on pve-01: `pct list`
+- [ ] CT ID `201` is free on pve-01: `pct list`
 - [ ] IP `*.*.*.*` is not in use: `ping -c1 *.*.*.*`
 - [ ] SSH key added to `terraform.tfvars`
 - [ ] `community.docker` Ansible collection installed

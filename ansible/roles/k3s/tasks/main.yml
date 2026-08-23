@@ -48,7 +48,7 @@
     src: "{{ k3s_data_disk }}"
     path: "{{ k3s_data_mount }}"
     fstype: ext4
-    opts: defaults,noatime
+    opts: defaults,noatime,nofail
     state: mounted
 
 # --- k3s install -------------------------------------------------------------

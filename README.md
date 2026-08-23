@@ -32,7 +32,7 @@ homecenter/
 │   ├── inventory/
 │   │   └── hosts.yml
 │   ├── playbooks/            # one playbook per service
-│   └── roles/                # homeassistant, plex, monitoring, nut
+│   └── roles/                # homeassistant, jellyfin, monitoring, nut
 │
 ├── terraform/
 │   └── pve-01/               # LXC/VM definitions for pve-01
@@ -114,7 +114,7 @@ exporter authenticates with a revocable read-only token rather than a user passw
 
 ## What it actually runs
 
-- **Media**: Plex in a container, serving libraries from a ZFS dataset over NFS
+- **Media**: Jellyfin in a container, serving libraries from a ZFS dataset over NFS
 - **Home automation**: Home Assistant stack in an isolated VM (MQTT + Zigbee-over-network planned as the mesh grows)
 - **Power resilience**: NUT server monitoring a USB-attached UPS, exposing status
   network-wide and feeding Prometheus
@@ -154,9 +154,22 @@ configuration via its REST API, host network config) into code.
 ## Docs
 
 - [Architecture diagram](docs/architecture/homelab-architecture.drawio.png) — editable in draw.io (embedded XML)
+- [Milestones](#milestones)
 - [Naming conventions](docs/architecture/naming.md)
 - [Pinned image versions](docs/architecture/image-versions.md)
 - [IP addressing](docs/network/ip-addressing.md) - redacted
 - [Hardware inventory](docs/infrastructure/hardware_inventory.md) - redacted
 - [Network diagram](docs/network/diagram.md) - redacted
-- Runbooks: [Home Automation](docs/runbooks/homeautomation-vm.md) · [Plex](docs/runbooks/plex-lxc.md) · [Monitoring](docs/runbooks/monitoring-lxc.md) · [NUT](docs/runbooks/nut-server-lxc.md) · [TrueNAS](docs/runbooks/truenas-init-notes.md) · [NVMe health](docs/runbooks/pve-01-nvme-health.md) · [k3s](docs/runbooks/k3s-vm.md) · [Image version pinning](docs/runbooks/image-version-pinning.md)
+- Runbooks: [Home Automation](docs/runbooks/homeautomation-vm.md) · [Jellyfin](docs/runbooks/jellyfin-lxc.md) · [Monitoring](docs/runbooks/monitoring-lxc.md) · [NUT](docs/runbooks/nut-server-lxc.md) · [TrueNAS](docs/runbooks/truenas-init-notes.md) · [TrueNAS SATA passthrough fault](docs/runbooks/truenas-sata-passthrough-fault.md) · [NVMe health](docs/runbooks/pve-01-nvme-health.md) · [k3s](docs/runbooks/k3s-vm.md) · [Image version pinning](docs/runbooks/image-version-pinning.md)
+
+---
+
+## Milestones
+
+Key events from idea and blueprints to today's state.
+
+<p align="center">
+  <a href="docs/architecture/homecenter-milestones.png">
+    <img src="docs/architecture/homecenter-milestones.png" alt="homecenter build timeline: from spec sheet to production" width="850">
+  </a>
+</p>

@@ -78,8 +78,9 @@ Expected targets:
 |--------------|------|---------------|
 | `*.*.*.*`    | 9100 | nut-01        |
 | `*.*.*.*`    | 9100 | monitoring-01 |
-| `*.*.*.*`    | 9100 | plex-01       |
+| `*.*.*.*`    | 9100 | jellyfin      |
 | `*.*.*.*`    | 9100 | homeautomation-01 |
+| `*.*.*.*`    | 9100 | pve-01 (added later via `pve-host.yml` — see [pve-01-nvme-health.md](pve-01-nvme-health.md)) |
 
 ---
 
@@ -113,8 +114,10 @@ dashboard covers everything node exporter exposes and takes ~1 minute to import:
 1. Open Grafana → Dashboards → Import
 2. Enter ID `1860` (Node Exporter Full) → Load → select the Prometheus datasource
 
-**Alerting rules** — no alerts fire yet. Useful starting points to add to a
-`prometheus.yml` `rule_files` block:
+**Alerting rules** — a `rule_files` block now exists and loads
+`roles/monitoring/templates/alerts.yml.j2` (currently NVMe health rules for pve-01,
+see [pve-01-nvme-health.md](pve-01-nvme-health.md)). Guest-level rules are still
+missing; useful starting points to add to that file:
 
 | Alert | Condition | Why it matters |
 |---|---|---|

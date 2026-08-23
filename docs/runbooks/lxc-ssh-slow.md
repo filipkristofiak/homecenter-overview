@@ -15,7 +15,9 @@ Enable `nesting` on the container. This allows cgroup namespace creation inside 
 ```bash
 # on pve-01 — must be run as root, not via API token
 pct set <id> --features nesting=1
-pct restart <id>
+pct shutdown <id> && pct start <id>
+# pct reboot <id>    # single-command alternative (not available on all setups)
+# pct restart <id>   # not a pct subcommand
 ```
 
 Verify `systemd-logind` is now running inside the container:
@@ -41,4 +43,4 @@ The `features` block on privileged LXC containers can only be changed via `root@
 
 ## Affected containers
 
-All privileged LXCs: nut-01 (200), monitoring-01 (201), plex-01 (202).
+All privileged LXCs: nut-01 (200), monitoring-01 (201), jellyfin (205).

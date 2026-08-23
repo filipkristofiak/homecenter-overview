@@ -1,0 +1,13 @@
+---
+# TrueNAS NFS source — pool: spinners, dataset: media
+jellyfin_truenas_nfs_server: "*.*.*.*"
+jellyfin_truenas_nfs_path: "/mnt/spinners-01/media"
+jellyfin_nfs_options: "defaults,ro,_netdev,nofail,x-systemd.automount"
+
+jellyfin_media_mount: /mnt/media
+jellyfin_data_dir: /var/lib/jellyfin
+
+# Jellyfin apt repo
+jellyfin_apt_key_url: "https://repo.jellyfin.org/jellyfin_team.gpg.key"
+jellyfin_apt_repo_url: "https://repo.jellyfin.org/debian"
+jellyfin_apt_suite: "bookworm"

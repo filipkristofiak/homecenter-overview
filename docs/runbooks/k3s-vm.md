@@ -211,8 +211,14 @@ partition/filesystem. kubelet starts evicting pods at 85% imagefs usage.
 
 ## Troubleshooting
 
-- **Node NotReady after VM restart** — `journalctl -u k3s -e` on the node;
-  most common cause is the data disk missing from fstab mount (`mount -a`).
+- **Node NotReady / no SSH / no agent after VM restart** — was: bare
+  `/dev/sdb` in fstab, no `nofail`, so a boot-time device-enumeration race
+  (`Can't open blockdev`) drops the VM into emergency mode — root is locked
+  on cloud-init images, so there's no console recovery, only `qm stop` +
+  `qm start` and hoping the race doesn't repeat (2026-08-22 incident). Fixed:
+  `k3s` role's data-disk mount now uses `defaults,noatime,nofail`, so a
+  failed mount degrades the boot (no PVs) instead of blocking it — SSH and
+  `k3s` still come up, and `mount -a` recovers the data disk once logged in.
 - **PVC stuck Pending** — no consumer pod yet (`WaitForFirstConsumer` is
   normal), or the local-path provisioner pod is down: `kubectl -n kube-system
   get pods | grep local-path`.

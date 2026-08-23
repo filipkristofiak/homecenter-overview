@@ -14,10 +14,9 @@ so the network side doesn't become a surprise later.
 |---------|------|--------|-------|
 | Default | untagged | `*.*.*.1/24` | Management, UniFi controller, workstations |
 | *** | 27 | `*.*.*.1/24` | All pve-01 LXC containers and VMs live here |
-| *** | 28 | `*.*.*.1/24` | Family zone |
-| HomeAuto | 39 | `*.*.*.1/24` | For homeAutomation with 3rd party integrations. Firewall rules |
-| *** | 38 | `*.*.*.1/24` | Isolated; smart home devices |
-| *** | 32 | `*.*.*.1/24` | Isolated; guest WiFi |
+| *** | 28 | `*.*.*.1/24` | (currently unused/disabled) |
+| IoT | 38 | `*.*.*.1/24` | Isolated; smart home devices |
+| Guest | 32 | `*.*.*.1/24` | Isolated; guest WiFi |
 
 pve-01 itself sits on VLAN 27. All LXC containers are on VLAN 27.
 
@@ -25,7 +24,7 @@ pve-01 itself sits on VLAN 27. All LXC containers are on VLAN 27.
 
 ## How pve-01 connects to the network
 
-pve-01 has a single 2.5 GbE NIC connected to the **UDR7**.
+pve-01 has a single 2.5 GbE NIC connected to the **USW Flex 2.5GbE**.
 Proxmox uses a VLAN-aware Linux bridge (`vmbr0`) — all VLANs are trunked over
 that one physical link and tagged at the Proxmox level.
 
@@ -43,18 +42,21 @@ before the container can reach the network — easy to forget.
 ## IP allocation on VLAN 27
 
 DHCP range starts at `.6` — the `.1–.5` block is effectively reserved for
-infrastructure (gateway `.1`, etc.). Static assignments for LXC containers start at `.*`.
+infrastructure (gateway `.1`, etc.). Static assignments for LXC containers start at `.10`
+to leave a buffer.
 
 | IP | Host | Service |
 |----|------|---------|
 | `*.*.*.1` | UDR 7 | VLAN 27 gateway |
 | `*.*.*.*` | nut-01 (CT 200) | NUT UPS server |
 | `*.*.*.*` | monitoring-01 (CT 201) | Grafana + Prometheus |
-| `*.*.*.*` | plex-01 (CT 202) | Plex Media Server |
+| `*.*.*.*` | jellyfin (CT 205) | Jellyfin Media Server |
+| `*.*.*.*` | homeautomation-01 (VM 203) | Home Automation — VLAN 39 |
 | `*.*.*.*` | TrueNAS VM | NAS |
 
+Next free static: **`.14`** → CT ID **`204`**.
 
-When provisioning a new container, claim the next `.*x` address and CT ID before
+When provisioning a new container, claim the next `.1x` address and CT ID before
 running `terraform apply` — nothing enforces this automatically.
 
 ---
@@ -82,7 +84,7 @@ mDNS is enabled on VLAN 27 (`mdns_enabled: true` in the network config). This me
 
 ## Adding a new LXC container — network checklist
 
-1. Claim the next free static IP (currently `.*`) and CT ID (`204`).
+1. Claim the next free static IP (currently `.14`) and CT ID (`204`).
 2. Add the IP and CT ID to `terraform/pve-01/variables.tf` and `terraform.tfvars`.
 3. Confirm the `vlan_id = 27` is set in the Terraform `network_interface` block.
 4. If the container needs to be on a different VLAN, update the switch trunk profile

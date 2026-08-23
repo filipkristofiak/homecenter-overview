@@ -38,19 +38,19 @@ variable "monitoring_lxc_id" {
   default     = 201
 }
 
-variable "plex_lxc_ip" {
-  description = "Static IPv4 address for the Plex LXC container (CIDR), on VLAN *"
+variable "jellyfin_lxc_ip" {
+  description = "Static IPv4 address for the Jellyfin LXC container (CIDR), on VLAN *"
   type        = string
   default     = "*.*.*.*/24"
 }
 
-variable "plex_lxc_id" {
-  description = "Proxmox VM/CT ID for the Plex container"
+variable "jellyfin_lxc_id" {
+  description = "Proxmox VM/CT ID for the Jellyfin container"
   type        = number
-  default     = 202
+  default     = 205
 }
 
-variable "plex_truenas_nfs_server" {
+variable "jellyfin_truenas_nfs_server" {
   description = "TrueNAS IP address serving the NFS media share"
   type        = string
   default     = "*.*.*.*"

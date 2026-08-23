@@ -114,8 +114,8 @@ bridge vlan add dev veth200i0 vid 27 pvid untagged
 # monitoring-01 (CT 201)
 bridge vlan add dev veth201i0 vid 27 pvid untagged
 
-# plex-01 (CT 202)
-bridge vlan add dev veth202i0 vid 27 pvid untagged
+# jellyfin (CT 205)
+bridge vlan add dev veth205i0 vid 27 pvid untagged
 
 # homeautomation-01 (VM 203, VLAN 39) — VM, not LXC; VLAN tag handled by vmbr0 trunk, no manual veth fixup needed
 ```

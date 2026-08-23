@@ -53,7 +53,7 @@ For each `/etc/pve/lxc/<id>.conf`:
 |---|---|---|---|---|
 | nut-01 | 200 | *.*.*.*/24 | 27 | veth200i0 |
 | monitoring-01 | 201 | *.*.*.*/24 | 27 | veth201i0 |
-| plex-01 | 202 | *.*.*.*/24 | 27 | veth202i0 |
+| jellyfin | 205 | *.*.*.*/24 | 27 | veth205i0 |
 | homeautomation-01 | 203 | *.*.*.*/24 | 39 | — (VM, not LXC) |
 
 ## Systemd Service Details

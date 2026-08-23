@@ -1,0 +1,58 @@
+---
+- name: Install prerequisites
+  apt:
+    name:
+      - curl
+      - gnupg
+      - nfs-common
+    state: present
+    update_cache: true
+
+- name: Add Jellyfin apt signing key (dearmored)
+  shell: >
+    curl -fsSL {{ jellyfin_apt_key_url }}
+    | gpg --dearmor --yes -o /usr/share/keyrings/jellyfin-archive-keyring.gpg
+  args:
+    creates: /usr/share/keyrings/jellyfin-archive-keyring.gpg
+
+- name: Add Jellyfin apt repository
+  copy:
+    dest: /etc/apt/sources.list.d/jellyfin.list
+    content: "deb [arch=amd64 signed-by=/usr/share/keyrings/jellyfin-archive-keyring.gpg] {{ jellyfin_apt_repo_url }} {{ jellyfin_apt_suite }} main\n"
+    mode: "0644"
+  notify: Update apt cache
+
+- name: Flush handlers (ensure apt cache is refreshed before install)
+  meta: flush_handlers
+
+- name: Install jellyfin
+  apt:
+    name: jellyfin
+    state: present
+
+- name: Create media mount point
+  file:
+    path: "{{ jellyfin_media_mount }}"
+    state: directory
+    owner: jellyfin
+    group: jellyfin
+    mode: "0755"
+
+- name: Mount TrueNAS NFS share (fstab + immediate mount)
+  mount:
+    src: "{{ jellyfin_truenas_nfs_server }}:{{ jellyfin_truenas_nfs_path }}"
+    path: "{{ jellyfin_media_mount }}"
+    fstype: nfs
+    opts: "{{ jellyfin_nfs_options }}"
+    state: mounted
+  notify: Restart jellyfin
+
+- name: Enable and start jellyfin
+  systemd:
+    name: jellyfin
+    enabled: true
+    state: started
+
+- name: Print Jellyfin Web UI URL
+  debug:
+    msg: "Jellyfin Web UI → http://{{ ansible_host }}:8096 (first run: complete the setup wizard and add /mnt/media as a library)"

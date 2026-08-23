@@ -1,0 +1,8 @@
+---
+- name: Configure Jellyfin Media Server on jellyfin LXC (pve-01)
+  hosts: jellyfin
+  become: false # LXC root user — no sudo needed
+
+  roles:
+    - common
+    - jellyfin

@@ -37,7 +37,7 @@ python tools/pve/status.py --publish   # push HTML to the monitoring-01 status p
 │   100 │ truenas                │ VM  │ running  │  16383M │   4866M │    786M │  16460M │ █████░░░░░░░░░░░░░░░   30%   │   0.4% │
 │   200 │ nut-01                 │ LXC │ running  │    256M │     72M │    154M │     84M │ █████▒▒▒▒▒▒▒▒▒▒▒▒░░░   28%   │   0.7% │
 │   201 │ monitoring-01          │ LXC │ running  │   1024M │    295M │    635M │    326M │ █████▒▒▒▒▒▒▒▒▒▒▒▒░░░   29%   │   1.0% │
-│   202 │ plex-01                │ LXC │ running  │   2048M │    123M │    318M │    137M │ █▒▒▒░░░░░░░░░░░░░░░░    6%   │   0.3% │
+│   205 │ jellyfin               │ LXC │ running  │   2048M │    118M │    302M │    131M │ █▒▒▒░░░░░░░░░░░░░░░░    6%   │   0.3% │
 │   203 │ homeautomation-01      │ VM  │ running  │   2048M │    767M │    998M │   2074M │ ███████▒▒▒▒▒▒▒▒▒░░░░   37%   │   0.4% │
 │   204 │ k3s-01                 │ VM  │ running  │  16384M │   1299M │   2543M │   4132M │ █▒▒▒░░░░░░░░░░░░░░░░    8%   │   1.0% │
 │  9000 │ debian-12-cloudinit    │ VM  │ stopped  │   1024M │         │         │         │                              │   0.0% │
@@ -85,7 +85,7 @@ Requires `~/.ssh/homelab_id` key with access to `***@*.*.*.*`.
 fixed 134-column width, rendered at 80% font size)
 and scps it to `monitoring-01:/opt/monitoring/status/index.html`, where an
 `nginx:alpine` container from the monitoring compose stack serves it on port 80
-under `/status/` (`/` redirects there):
+under `/status/` (`/` redirects there; config in `status-nginx.conf.j2`):
 
 - **URL**: `http://*.*.*.*/status`
 - The page auto-refreshes in the browser every 60 s, but its *content* only updates
@@ -113,5 +113,5 @@ authorized on `root@pve-01`. When doing it:
   allocation permanently; expected, not a leak
 - k3s-01's Touch creeps upward from ~4 GB toward its 16 GB allocation as
   workloads touch pages — plan host RAM against allocations, not guest RSS
-- plex-01 shows low RSS at idle; memory only climbs during active local media playback
+- jellyfin shows low RSS at idle; memory only climbs during active local media playback
 - monitoring-01's cache is Prometheus TSDB — expected to grow over time

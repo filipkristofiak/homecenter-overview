@@ -3,7 +3,7 @@
   apt:
     update_cache: true
 
-- name: Restart plexmediaserver
+- name: Restart jellyfin
   systemd:
-    name: plexmediaserver
+    name: jellyfin
     state: restarted

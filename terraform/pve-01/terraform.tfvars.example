@@ -8,9 +8,9 @@ nut_lxc_id        = 200
 monitoring_lxc_ip = "*.*.*.*/24"
 monitoring_lxc_id = 201
 
-plex_lxc_ip             = "*.*.*.*/24"
-plex_lxc_id             = 202
-plex_truenas_nfs_server = "*.*.*.*"  # update once TrueNAS VM is deployed
+jellyfin_lxc_ip             = "*.*.*.*/24"
+jellyfin_lxc_id             = 205
+jellyfin_truenas_nfs_server = "*.*.*.*"
 
 homeautomation_vm_ip  = "*.*.*.*/24"
 homeautomation_vm_id  = 203

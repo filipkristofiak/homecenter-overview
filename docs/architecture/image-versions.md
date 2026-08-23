@@ -1,8 +1,9 @@
 # Pinned Software Versions
 
 Single place to check what version of each service is deliberately pinned, and how to
-bump it. Exists to close a reproducibility gap: `latest`/`stable` tags meant any
-`ansible-playbook` run could silently pull a new major version mid-deploy.
+bump it. Existing to close a gap identified during an internal infrastructure review
+(finding 7): `latest`/`stable` tags meant any `ansible-playbook` run could silently pull
+a new major version.
 
 ---
 
@@ -25,7 +26,7 @@ relevant `defaults/main.yml`, followed by a normal playbook run.
 
 | Component | Why not |
 |---|---|
-| Plex (`plexmediaserver` apt package) | Not a critical service; would need an exact-version `apt` pin (`name: "plexmediaserver={{ version }}"`), different mechanism than the image-tag vars above — deferred. |
+| Jellyfin (`jellyfin` apt package) | Not critical; would need an exact-version `apt` pin, different mechanism than the image-tag vars above — deferred. |
 | k3s (`INSTALL_K3S_CHANNEL: stable`) | The install task is guarded by `creates: /usr/local/bin/k3s`, so re-running the playbook never re-triggers install/upgrade — `stable` doesn't cause the "upgrade on every run" risk the Docker `latest` tags did. Currently running `v1.36.2+k3s1` on k3s-01. Revisit (switch to `INSTALL_K3S_VERSION`) only if the node is ever rebuilt from scratch, since a bare `stable` rebuild could land many minor versions ahead — Kubernetes doesn't support skipping several minors in one jump. |
 
 ---

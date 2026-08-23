@@ -9,7 +9,7 @@ single-node k3s cluster on `pve-01`.
 One k3s node serving two workload classes:
 
 1. **Stable home services** — candidates to migrate over time (monitoring stack
-   first; see [Non-goals](#non-goals) for why Plex stays out).
+   first; see [Non-goals](#non-goals) for why Jellyfin stays out).
 2. **Learning projects** — a small "data platform": pandas processing jobs,
    Postgres for storage, Redpanda as message broker, plus an orchestrator.
 
@@ -50,16 +50,15 @@ Two tiers, split by availability and latency requirements:
   local-path provisioner. Holds all fsync-heavy and availability-sensitive
   state: Postgres, Redpanda, Prometheus TSDB. Rough headroom: Postgres 20–50 GB,
   Redpanda 20–40 GB, Prometheus 15–30 GB (30-day retention), rest scratch.
-- **Tier 2 — TrueNAS-backed (future expansion):** a spare 512 GB SATA SSD goes
-  into a free port on the SATA controller passed through to the `truenas` VM →
-  single-disk pool → served to k3s via
+- **Tier 2 — TrueNAS-backed (future expansion):** superseded by a 1TB SSD and
+  the two-JMB582-card split — see
+  [`docs/infrastructure/sata-port-allocation-ssd-hdd.md`](../infrastructure/sata-port-allocation-ssd-hdd.md)
+  for current port/passthrough allocation. Design intent unchanged: single-disk
+  pool on TrueNAS → served to k3s via
   [democratic-csi](https://github.com/democratic-csi/democratic-csi) (TrueNAS
   API driver). iSCSI storage class for anything database-shaped, NFS for
   shared/bulk. For replaceable data only — both VMs live on the same host, so
-  TrueNAS downtime hangs any pod mounting its volumes. Traffic stays on the
-  host's virtual bridge, so the SATA drive itself is the bottleneck, which is
-  acceptable. No expansion card purchase: not worth it for one DRAM-less SATA
-  drive slower than the existing NVMe.
+  TrueNAS downtime hangs any pod mounting its volumes.
 
 ## Workload notes
 
@@ -82,8 +81,8 @@ Two tiers, split by availability and latency requirements:
 
 ## Non-goals
 
-- **Plex stays in its LXC.** QuickSync iGPU passthrough is trivial to an LXC
-  (device nodes) but requires full iGPU passthrough or SR-IOV to a VM —
+- **Jellyfin stays in its LXC.** QuickSync iGPU passthrough is trivial to an
+  LXC (device nodes) but requires full iGPU passthrough or SR-IOV to a VM —
   hardware transcoding would be lost for no gain.
 - **No multi-node / HA.** Single node, single host; k3s HA is out of scope.
 - **No SATA expansion card** unless multiple drives are added or NVMe space

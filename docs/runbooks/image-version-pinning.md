@@ -18,6 +18,8 @@ only future upgrades become deliberate. See
 [`docs/architecture/image-versions.md`](../architecture/image-versions.md) for the
 current pinned table and the bump procedure going forward.
 
+Source: prioritized during an internal infrastructure review, finding 7.
+
 ---
 
 ## File layout
@@ -49,7 +51,7 @@ ssh -i ~/.ssh/homelab_id ***@*.*.*.* 'pct exec 201 -- docker exec <container> <b
 #   pct exec 201 -- docker exec <container> sh -c \
 #     'find / -iname "*pve_exporter*dist-info*" -maxdepth 8'
 
-# Home Assistant (homeautomation-01)
+# Home Assistant (homeautomation-01, VM 203)
 ssh -i ~/.ssh/homelab_id ***@*.*.*.* 'docker exec <container> python3 -c \
   "import homeassistant.const as c; print(c.__version__)"'
 ```
@@ -82,5 +84,5 @@ Expect explicit tags (`grafana/grafana:12.4.2`, etc.) instead of `latest`/`alpin
 |---|---|---|
 | Where versions live | Role `defaults/main.yml`, one var per image | Matches the existing pattern (`grafana_admin_password`, port vars) — no new file or layer needed |
 | What to pin to | Currently-running version, read live off the containers | Guarantees the migration itself causes zero drift; upgrades become separate, deliberate commits |
-| Plex | Left unpinned | Not a critical service; apt exact-version pinning is a different mechanism, deferred |
+| Jellyfin | Left unpinned | Not a critical service; apt exact-version pinning is a different mechanism, deferred |
 | k3s | Left unpinned | Install task guarded by `creates:`, so `stable` doesn't get re-resolved on every run the way Docker `latest` did; see [`docs/architecture/image-versions.md`](../architecture/image-versions.md) for the rebuild caveat |

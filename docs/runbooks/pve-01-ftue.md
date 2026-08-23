@@ -1,6 +1,6 @@
 # pve-01 — First deployment guide
 
-Full walkthrough for deploying all four LXC containers from scratch. TrueNAS is already
+Full walkthrough for deploying the core LXC containers from scratch. TrueNAS is already
 running at `*.*.*.*` and is assumed reachable from VLAN 27.
 
 **Containers being deployed:**
@@ -83,7 +83,10 @@ the following to `/etc/pve/lxc/200.conf`:
 Then restart the container:
 
 ```bash
-pct restart 200
+pct shutdown 200
+pct start 200
+# pct reboot 200    # single-command alternative (not available on all setups)
+# pct restart 200   # not a pct subcommand
 ```
 
 Verify the APC UPS is visible inside the container:
@@ -124,12 +127,12 @@ ansible-playbook playbooks/nut-server.yml \
 ansible-playbook playbooks/monitoring.yml
 ```
 
-### 5d. Plex Media Server
+### 5d. Jellyfin Media Server
 
 Requires TrueNAS NFS share to be configured first (see below). Then:
 
 ```bash
-ansible-playbook playbooks/plex.yml
+ansible-playbook playbooks/jellyfin.yml
 ```
 
 **TrueNAS NFS pre-requisite** — in TrueNAS SCALE (Sharing → NFS → Add):
@@ -162,19 +165,13 @@ passthrough from Step 4 and run `pct enter 200 && upsdrvctl start`.
    - Select the Prometheus datasource → Import
 4. Verify Prometheus targets are all UP: `http://*.*.*.*:9090/targets`
 
-### Plex — claim the server
+### Jellyfin — first-run setup wizard
 
-Plex must be claimed from a browser on the same network as the container. Use an SSH
-tunnel from a workstation on VLAN 27 (or VLAN 28 if you have a machine there):
+No claim token needed — open `http://*.*.*.*:8096` and:
 
-[REDACTED]
-
-Then open `http://localhost:32400/web` in your browser and sign in to claim the server.
-
-After claiming:
-
-1. Add Library → Movies / TV Shows
-2. Set folder to `/mnt/media` (or subdirectories within it)
+1. Create the admin account
+2. Add Library → Movies / TV Shows
+3. Set folder to `/mnt/media` (or subdirectories within it)
 
 ### Home Assistant — onboarding wizard
 
@@ -202,8 +199,8 @@ curl -s http://*.*.*.*:3000/api/health
 curl -s 'http://*.*.*.*:9090/api/v1/targets' \
   | python3 -m json.tool | grep '"health"'
 
-# Plex
-curl -s -o /dev/null -w "%{http_code}" http://*.*.*.*:32400/web
+# Jellyfin
+curl -s -o /dev/null -w "%{http_code}" http://*.*.*.*:8096/health
 
 # Home Assistant
 curl -s -o /dev/null -w "%{http_code}" http://*.*.*.*:8123
@@ -219,5 +216,5 @@ curl -s -o /dev/null -w "%{http_code}" http://*.*.*.*:8123
 | Alertmanager (email/Slack alerts) | Not yet deployed — needs new LXC or addition to monitoring stack |
 | HA integrations (Xiaomi, TPlink) | HA onboarding wizard → Settings → Integrations |
 | HA NUT integration | Settings → Integrations → search "NUT", point to `*.*.*.*:3493` |
-| Plex hardware transcoding | See `plex-lxc.md` — requires manual GPU passthrough config on CT 202 |
+| Jellyfin hardware transcoding | See [jellyfin-lxc.md](jellyfin-lxc.md) — GPU passthrough config on CT 205 |
 | Backups | No automated backup strategy yet for HA config, Prometheus data, or Grafana |

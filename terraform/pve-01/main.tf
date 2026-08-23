@@ -1,28 +1,32 @@
 # -----------------------------------------------------------------------------
-# Plex Media Server LXC — pve-01
+# Jellyfin LXC — pve-01
 #
-# Runs Plex Media Server as a privileged container. Media lives on TrueNAS
-# (pool: spinners, dataset: media) and is NFS-mounted at /mnt/media inside
-# the container.
+# Runs Jellyfin Media Server as a privileged container. Media lives on
+# TrueNAS (pool: spinners, dataset: media) and is NFS-mounted at
+# /mnt/media inside the container.
 #
 # NFS note:
 #   Ansible mounts the TrueNAS NFS share via /etc/fstab with _netdev so the
-#   mount waits for the network. The TrueNAS NFS export must allow the plex
-#   user's UID (default 972) or use mapall — see the runbook for details.
+#   mount waits for the network. The TrueNAS NFS export must allow the
+#   jellyfin user's UID (check `id jellyfin` after install) or use mapall —
+#   see the runbook for details.
 #
 # Hardware transcoding note (optional, future):
-#   To enable Intel Quick Sync GPU passthrough for transcoding, add after apply:
+#   Jellyfin's hardware transcoding (VAAPI/Quick Sync) needs no paid tier.
+#   To enable, add after apply to /etc/pve/lxc/<id>.conf:
 #     lxc.cgroup2.devices.allow: c 226:* rwm
 #     lxc.mount.entry: /dev/dri dev/dri none bind,optional,create=dir
-#   Then restart the container: pct restart <id>
+#   Then restart the container: pct shutdown <id> && pct start <id>
+#   Inside the container, add the jellyfin user to the render/video groups
+#   so ffmpeg can open /dev/dri without transcoding as root.
 # -----------------------------------------------------------------------------
 
-resource "proxmox_virtual_environment_container" "lxc_plex" {
-  description = "Plex Media Server – streams media from TrueNAS NFS (VLAN *)"
+resource "proxmox_virtual_environment_container" "lxc_jellyfin" {
+  description = "Jellyfin Media Server – streams media from TrueNAS NFS (VLAN *)"
   node_name   = "pve-01"
-  vm_id       = var.plex_lxc_id
+  vm_id       = var.jellyfin_lxc_id
 
-  tags = ["plex", "media", "infra"]
+  tags = ["jellyfin", "media", "infra"]
 
   start_on_boot = true
   started       = true
@@ -30,7 +34,7 @@ resource "proxmox_virtual_environment_container" "lxc_plex" {
 
   # NOTE: nesting=1 must be set manually after apply — Proxmox only allows feature flag changes
   # for privileged containers via root@pam, not API tokens:
-  #   pct set 202 --features nesting=1 && pct restart 202
+  #   pct set 205 --features nesting=1 && pct shutdown 205 && pct start 205
   lifecycle {
     ignore_changes = [features]
   }
@@ -40,20 +44,20 @@ resource "proxmox_virtual_environment_container" "lxc_plex" {
   }
 
   memory {
-    dedicated = 2048 # Plex recommends ≥1 GB; 2 GB comfortable for 1080p
+    dedicated = 2048 # Jellyfin recommends ≥1 GB; 2 GB comfortable for 1080p
   }
 
   disk {
     datastore_id = "local-lvm"
-    size         = 16 # OS + Plex metadata, thumbnails, transcode temp
+    size         = 16 # OS + Jellyfin metadata, thumbnails, transcode temp
   }
 
   initialization {
-    hostname = "plex-01"
+    hostname = "jellyfin"
 
     ip_config {
       ipv4 {
-        address = var.plex_lxc_ip
+        address = var.jellyfin_lxc_ip
         gateway = "*.*.*.*"
       }
     }
