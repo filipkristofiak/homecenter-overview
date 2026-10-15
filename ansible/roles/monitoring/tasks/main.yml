@@ -30,6 +30,35 @@
     mode: "0644"
   notify: Restart monitoring stack
 
+- name: Check locally built periscope distribution
+  stat:
+    path: "{{ periscope_dist_dir }}/periscoped"
+  delegate_to: localhost
+  register: periscope_binary
+  tags: [periscope]
+
+- name: Require locally built periscope distribution
+  fail:
+    msg: "periscope dist missing at {{ periscope_dist_dir }} — run scripts/dist.sh in the periscope repo"
+  when: not periscope_binary.stat.exists
+  tags: [periscope]
+
+- name: Deploy periscope distribution
+  copy:
+    src: "{{ periscope_dist_dir }}/"
+    dest: "{{ monitoring_dir }}/periscope/"
+    mode: preserve
+  register: periscope_dist
+  tags: [periscope]
+
+- name: Deploy periscope module config
+  template:
+    src: periscope.toml.j2
+    dest: "{{ monitoring_dir }}/periscope.toml"
+    mode: "0644"
+  register: periscope_config
+  tags: [periscope]
+
 - name: Deploy docker-compose.yml
   template:
     src: docker-compose.yml.j2
@@ -66,6 +95,16 @@
     project_src: "{{ monitoring_dir }}"
     state: present
 
+- name: Rebuild and recreate periscope after distribution or config changes
+  community.docker.docker_compose_v2:
+    project_src: "{{ monitoring_dir }}"
+    services: [periscope]
+    build: always
+    state: present
+    recreate: always
+  when: periscope_dist.changed or periscope_config.changed
+  tags: [periscope]
+
 - name: Wait for Grafana to be ready
   uri:
     url: "http://localhost:{{ grafana_port }}/api/health"
@@ -88,3 +127,4 @@
       - "Grafana    → http://{{ ansible_host }}:{{ grafana_port }}"
       - "Prometheus → http://{{ ansible_host }}:{{ prometheus_port }}"
       - "Status     → http://{{ ansible_host }}:{{ status_page_port }}/status"
+      - "Periscope  → http://{{ ansible_host }}:{{ periscope_port }}"

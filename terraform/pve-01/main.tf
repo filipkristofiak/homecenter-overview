@@ -2,7 +2,7 @@
 # Jellyfin LXC — pve-01
 #
 # Runs Jellyfin Media Server as a privileged container. Media lives on
-# TrueNAS (pool: spinners, dataset: media) and is NFS-mounted at
+# TrueNAS (pool: spinners-01, dataset: media) and is NFS-mounted at
 # /mnt/media inside the container.
 #
 # NFS note:
@@ -40,7 +40,7 @@ resource "proxmox_virtual_environment_container" "lxc_jellyfin" {
   }
 
   cpu {
-    cores = 2 # software transcoding is CPU-heavy; increase for 4K
+    cores = 4 # library scans and metadata passes saturate 2 cores for 45+ min; transcoding is CPU-heavy too
   }
 
   memory {
@@ -86,8 +86,9 @@ resource "proxmox_virtual_environment_container" "lxc_jellyfin" {
 # containers managed by docker-compose, inside a dedicated Debian 12 VM.
 #
 # Placed on VLAN * — isolated zone. Cross-VLAN firewall rules in
-# UniFi allow only: TCP 8123 inbound (UI), TCP 6638 to SLZB-06M, TCP 22 for
-# Ansible, TCP 9100 for Prometheus node-exporter.
+# UniFi allow only: TCP 8123 inbound (UI), TCP 22 for Ansible, TCP 9100 for
+# Prometheus node-exporter. The SLZB-06U Zigbee coordinator shares VLAN *, so
+# Z2M → TCP 6638 needs no rule.
 #
 # Pre-requisite: a Debian 12 cloud-init template must exist on pve-01.
 # Create it once from the Proxmox shell:
@@ -275,7 +276,7 @@ resource "proxmox_virtual_environment_container" "lxc_monitoring" {
 
   # NOTE: nesting=1 must be set manually after apply — Proxmox only allows feature flag changes
   # for privileged containers via root@pam, not API tokens:
-  #   pct set 201 --features nesting=1 && pct restart 201
+  #   pct set 201 --features nesting=1 && pct shutdown 201 && pct start 201
   lifecycle {
     ignore_changes = [features]
   }
@@ -335,7 +336,7 @@ resource "proxmox_virtual_environment_container" "lxc_monitoring" {
 #     lxc.cgroup2.devices.allow: c 189:* rwm
 #     lxc.mount.entry: /dev/bus/usb dev/bus/usb none bind,optional,create=dir
 #
-#   Then restart the container:  pct restart 200
+#   Then restart the container:  pct shutdown 200 && pct start 200
 #   Verify device visible inside: ls /dev/bus/usb
 # -----------------------------------------------------------------------------
 
@@ -352,7 +353,7 @@ resource "proxmox_virtual_environment_container" "lxc_nut_server" {
 
   # NOTE: nesting=1 must be set manually after apply — Proxmox only allows feature flag changes
   # for privileged containers via root@pam, not API tokens:
-  #   pct set 200 --features nesting=1 && pct restart 200
+  #   pct set 200 --features nesting=1 && pct shutdown 200 && pct start 200
   lifecycle {
     ignore_changes = [features]
   }
@@ -398,3 +399,4 @@ resource "proxmox_virtual_environment_container" "lxc_nut_server" {
     type             = "debian"
   }
 }
+

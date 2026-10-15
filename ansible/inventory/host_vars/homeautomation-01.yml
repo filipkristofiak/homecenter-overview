@@ -1,0 +1,7 @@
+---
+# Host-only secrets for homeautomation-01, stored as inline ansible-vault values
+# (ansible-vault encrypt_string --stdin-name <var>):
+#   z2m_mqtt_password
+#   ha_mqtt_password
+#   periscope_mqtt_password
+#   zigbee_network_key

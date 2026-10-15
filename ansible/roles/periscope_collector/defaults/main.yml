@@ -1,0 +1,5 @@
+---
+periscope_collector_textfile_dir: /var/lib/prometheus/node-exporter
+periscope_collector_containers: []
+periscope_collector_http_probes: []
+periscope_collector_mqtt: {}

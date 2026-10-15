@@ -41,9 +41,6 @@ id_ed25519
 # Drafts / WIP
 .draft/
 
-# Generated status page (deployed, not tracked)
-tools/pve/web/public/
-
 # Editors
 .vscode/
 .idea/

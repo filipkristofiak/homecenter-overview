@@ -217,4 +217,4 @@ curl -s -o /dev/null -w "%{http_code}" http://*.*.*.*:8123
 | HA integrations (Xiaomi, TPlink) | HA onboarding wizard → Settings → Integrations |
 | HA NUT integration | Settings → Integrations → search "NUT", point to `*.*.*.*:3493` |
 | Jellyfin hardware transcoding | See [jellyfin-lxc.md](jellyfin-lxc.md) — GPU passthrough config on CT 205 |
-| Backups | No automated backup strategy yet for HA config, Prometheus data, or Grafana |
+| Other guest backups | VM 203 is backed up weekly to TrueNAS; other guest disks are not. See [pve-01-backups.md](pve-01-backups.md). |

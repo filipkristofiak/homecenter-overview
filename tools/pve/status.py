@@ -4,7 +4,7 @@ Proxmox resource overview — runs from Mac, SSHes into pve-01.
 
 Usage:
     python tools/pve/status.py                # render in terminal
-    python tools/pve/status.py --html out.html
+    python tools/pve/status.py --web-dir DIR   # write DIR/public/index.html
     python tools/pve/status.py --publish      # scp HTML to monitoring-01 status page
 """
 
@@ -30,6 +30,7 @@ except ImportError:
 
 PVE_HOST = "***@*.*.*.*" # user@host
 SSH_KEY = str(Path.home() / ".ssh" / "homelab_id")
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 MONITORING_HOST = "***@*.*.*.*" # user@host
 PUBLISH_DEST = "/opt/monitoring/status/index.html"
@@ -214,13 +215,19 @@ def publish(html: str) -> None:
 
 def main():
     parser = argparse.ArgumentParser(description="pve-01 resource overview")
-    parser.add_argument("--html", metavar="PATH",
-                        help="also write the rendered output as an HTML page")
+    parser.add_argument("--web-dir", metavar="DIR", type=Path,
+                        help="write the HTML page to DIR/public/index.html (DIR must contain wrangler.jsonc)")
     parser.add_argument("--publish", action="store_true",
                         help=f"push HTML to {MONITORING_HOST}:{PUBLISH_DEST} ({STATUS_URL})")
     args = parser.parse_args()
+    if args.web_dir:
+        web_dir = args.web_dir.expanduser().resolve()
+        if not (web_dir / "wrangler.jsonc").is_file():
+            parser.error(f"--web-dir: {web_dir} has no wrangler.jsonc")
+        if web_dir == REPO_ROOT or REPO_ROOT in web_dir.parents:
+            parser.error(f"--web-dir: {web_dir} is inside the homecenter repository")
 
-    exporting = bool(args.html or args.publish)
+    exporting = bool(args.web_dir or args.publish)
     # fixed width when exporting so the HTML doesn't depend on terminal size
     console = Console(record=exporting, width=134 if exporting else None)
 
@@ -344,9 +351,10 @@ def main():
     console.print()
     console.print(table)
     console.print("  [dim]█ RSS   ▒ cache   ░ free   ·   Touch = host-resident (VMs: pages ever touched, only grows; LXC: cgroup usage)[/dim]")
-    console.print()
-    for line in nvme_health_lines():
-        console.print(line)
+    if not exporting:
+        console.print()
+        for line in nvme_health_lines():
+            console.print(line)
     console.print()
     if exporting:
         console.print(f"  [dim]as of {datetime.now():%Y-%m-%d %H:%M:%S}[/dim]")
@@ -354,9 +362,11 @@ def main():
 
     if exporting:
         html = console.export_html(theme=UBUNTU_THEME, code_format=HTML_FORMAT)
-        if args.html:
-            Path(args.html).write_text(html)
-            console.print(f"HTML written to {args.html}")
+        if args.web_dir:
+            out = web_dir / "public" / "index.html"
+            out.parent.mkdir(exist_ok=True)
+            out.write_text(html)
+            console.print(f"HTML written to {out}")
         if args.publish:
             try:
                 publish(html)

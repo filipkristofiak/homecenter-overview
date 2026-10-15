@@ -20,11 +20,6 @@ scrape_configs:
           nodename: {{ host }}
 {% endfor %}
 
-  - job_name: nut
-    static_configs:
-      - targets:
-          - {{ hostvars['nut-01']['ansible_host'] }}:{{ nut_exporter_port }}
-
   - job_name: pve
     static_configs:
       - targets:

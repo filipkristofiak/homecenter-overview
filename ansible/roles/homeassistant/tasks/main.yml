@@ -12,29 +12,232 @@
 
 - name: Create Home Assistant directories
   file:
-    path: "{{ homeassistant_dir }}/{{ item }}"
+    path: "{{ homeassistant_dir }}/{{ item.path }}"
     state: directory
-    mode: "0750"
+    owner: "{{ item.owner | default('root') }}"
+    group: "{{ item.group | default('root') }}"
+    mode: "{{ item.mode }}"
   loop:
-    - ""
-    - config
+    - { path: "", mode: "0750" }
+    - { path: "config", mode: "0750" }
+    - { path: "mosquitto", mode: "0750" }
+    - { path: "mosquitto/config", group: "1883", mode: "0750" }
+    - { path: "mosquitto/data", owner: "1883", group: "1883", mode: "0750" }
+    - { path: "zigbee2mqtt", mode: "0750" }
+    - { path: "zigbee2mqtt/data", mode: "0700" }
+
+- name: Deploy Mosquitto configuration
+  template:
+    src: mosquitto.conf.j2
+    dest: "{{ homeassistant_dir }}/mosquitto/config/mosquitto.conf"
+    owner: root
+    group: "1883"
+    mode: "0640"
+  register: mosquitto_config
+
+- name: Check MQTT credential fingerprint
+  stat:
+    path: "{{ homeassistant_dir }}/mosquitto/.credentials-fingerprint"
+  register: mqtt_fingerprint_file
+
+- name: Read MQTT credential fingerprint
+  slurp:
+    src: "{{ homeassistant_dir }}/mosquitto/.credentials-fingerprint"
+  register: mqtt_fingerprint
+  when: mqtt_fingerprint_file.stat.exists
+  no_log: true
+
+- name: Determine whether broker credentials changed
+  set_fact:
+    mqtt_credentials_changed: "{{ not mqtt_fingerprint_file.stat.exists or ((mqtt_fingerprint.content | default('') | b64decode | trim) != ([z2m_mqtt_password | trim, ha_mqtt_password | trim, periscope_mqtt_password | trim] | join(':') | hash('sha256'))) }}"
+  no_log: true
+
+- name: Remove incomplete broker password candidate
+  file:
+    path: "{{ homeassistant_dir }}/mosquitto/config/passwd.new"
+    state: absent
+  when: mqtt_credentials_changed
+
+- name: Create Zigbee2MQTT broker account
+  command:
+    argv:
+      - docker
+      - run
+      - --rm
+      - --network
+      - none
+      - -v
+      - "{{ homeassistant_dir }}/mosquitto/config:/mosquitto/config"
+      - "eclipse-mosquitto:{{ mosquitto_image_tag }}"
+      - mosquitto_passwd
+      - -c
+      - -b
+      - /mosquitto/config/passwd.new
+      - z2m
+      - "{{ z2m_mqtt_password | trim }}"
+  when: mqtt_credentials_changed
+  no_log: true
+
+- name: Create Home Assistant broker account
+  command:
+    argv:
+      - docker
+      - run
+      - --rm
+      - --network
+      - none
+      - -v
+      - "{{ homeassistant_dir }}/mosquitto/config:/mosquitto/config"
+      - "eclipse-mosquitto:{{ mosquitto_image_tag }}"
+      - mosquitto_passwd
+      - -b
+      - /mosquitto/config/passwd.new
+      - homeassistant
+      - "{{ ha_mqtt_password | trim }}"
+  when: mqtt_credentials_changed
+  no_log: true
+
+- name: Create periscope broker account
+  command:
+    argv:
+      - docker
+      - run
+      - --rm
+      - --network
+      - none
+      - -v
+      - "{{ homeassistant_dir }}/mosquitto/config:/mosquitto/config"
+      - "eclipse-mosquitto:{{ mosquitto_image_tag }}"
+      - mosquitto_passwd
+      - -b
+      - /mosquitto/config/passwd.new
+      - periscope
+      - "{{ periscope_mqtt_password | trim }}"
+  when: mqtt_credentials_changed
+  no_log: true
+
+- name: Replace broker password file after all accounts exist
+  command:
+    argv:
+      - mv
+      - -f
+      - "{{ homeassistant_dir }}/mosquitto/config/passwd.new"
+      - "{{ homeassistant_dir }}/mosquitto/config/passwd"
+  when: mqtt_credentials_changed
+  no_log: true
+
+- name: Restrict broker password file
+  file:
+    path: "{{ homeassistant_dir }}/mosquitto/config/passwd"
+    owner: "1883"
+    group: "1883"
+    mode: "0640"
+
+- name: Record MQTT credential fingerprint after creating all accounts
+  copy:
+    content: "{{ [z2m_mqtt_password | trim, ha_mqtt_password | trim, periscope_mqtt_password | trim] | join(':') | hash('sha256') }}\n"
+    dest: "{{ homeassistant_dir }}/mosquitto/.credentials-fingerprint"
+    mode: "0600"
+  when: mqtt_credentials_changed
+  no_log: true
+
+- name: Store HA MQTT password for first-time UI setup
+  copy:
+    content: "{{ ha_mqtt_password | trim }}\n"
+    dest: "{{ homeassistant_dir }}/mosquitto/ha-mqtt-password"
+    mode: "0600"
+  no_log: true
+
+- name: Seed Zigbee2MQTT configuration (preserve Z2M's own updates)
+  template:
+    src: zigbee2mqtt-configuration.yaml.j2
+    dest: "{{ homeassistant_dir }}/zigbee2mqtt/data/configuration.yaml"
+    force: false
+    mode: "0600"
+  register: zigbee2mqtt_config
+  no_log: true
+
+- name: Deploy Zigbee2MQTT secrets
+  template:
+    src: zigbee2mqtt-secret.yaml.j2
+    dest: "{{ homeassistant_dir }}/zigbee2mqtt/data/secret.yaml"
+    mode: "0600"
+  register: zigbee2mqtt_secret
+  no_log: true
 
 - name: Deploy docker-compose.yml
   template:
     src: docker-compose.yml.j2
     dest: "{{ homeassistant_dir }}/docker-compose.yml"
     mode: "0640"
-  notify: Restart homeassistant
 
-- name: Flush handlers (apply config changes before printing URL)
-  meta: flush_handlers
-
-- name: Start Home Assistant
+- name: Start home automation stack
   community.docker.docker_compose_v2:
     project_src: "{{ homeassistant_dir }}"
     state: present
-    pull: always
+    pull: missing
+
+- name: Restart Mosquitto when its configuration or passwords change
+  community.docker.docker_compose_v2:
+    project_src: "{{ homeassistant_dir }}"
+    services: [mosquitto]
+    state: restarted
+  when: mosquitto_config.changed or mqtt_credentials_changed
+
+- name: Restart Zigbee2MQTT when its configuration or secrets change
+  community.docker.docker_compose_v2:
+    project_src: "{{ homeassistant_dir }}"
+    services: [zigbee2mqtt]
+    state: restarted
+  when: zigbee2mqtt_config.changed or zigbee2mqtt_secret.changed
+
+- name: Read Zigbee2MQTT configuration
+  slurp:
+    src: "{{ homeassistant_dir }}/zigbee2mqtt/data/configuration.yaml"
+  register: zigbee2mqtt_config_file
+  no_log: true
+
+- name: Determine whether Zigbee2MQTT availability is enabled
+  set_fact:
+    zigbee2mqtt_availability_enabled: "{% set a = (zigbee2mqtt_config_file.content | b64decode | from_yaml).availability | default(none) %}{{ a is sameas true or (a is mapping and (a.enabled | default(false) | bool)) }}"
+
+- name: Enable Zigbee2MQTT availability through its bridge API
+  command:
+    argv:
+      - docker
+      - exec
+      - mosquitto
+      - mosquitto_rr
+      - -h
+      - 127.0.0.1
+      - -p
+      - "1883"
+      - -u
+      - z2m
+      - -P
+      - "{{ z2m_mqtt_password | trim }}"
+      - -t
+      - zigbee2mqtt/bridge/request/options
+      - -e
+      - zigbee2mqtt/bridge/response/options
+      - -m
+      - '{"options":{"availability":{"enabled":true}}}'
+      - -W
+      - "10"
+  register: zigbee2mqtt_availability_response
+  until: zigbee2mqtt_availability_response.rc == 0 and (zigbee2mqtt_availability_response.stdout | from_json).status == 'ok'
+  retries: 6
+  delay: 10
+  when: not zigbee2mqtt_availability_enabled
+  no_log: true
+
+- name: Restart Zigbee2MQTT to apply device availability
+  community.docker.docker_compose_v2:
+    project_src: "{{ homeassistant_dir }}"
+    services: [zigbee2mqtt]
+    state: restarted
+  when: zigbee2mqtt_availability_response is changed
 
 - name: Print Home Assistant UI URL
   debug:
-    msg: "Home Assistant → http://{{ ansible_host }}:8123 (onboarding wizard on first run)"
+    msg: "Home Assistant → http://{{ ansible_host }}:8123 (Zigbee2MQTT frontend via SSH tunnel to localhost:8080)"

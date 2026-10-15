@@ -26,7 +26,7 @@ Moved the host IP off the raw bridge onto a VLAN 27 subinterface. This makes hos
 ```
 auto vmbr0
 iface vmbr0 inet static
-    address *.*.*.100/24
+    address *.*.*.*/24
     gateway *.*.*.1
     bridge-ports nic0
     bridge-stp off
@@ -35,7 +35,7 @@ iface vmbr0 inet static
     bridge-vids 27-28
 ```
 
-**After:**
+**Current host configuration (the original fix used `bridge-vids 27-28`; VLAN 39 was added later):**
 ```
 iface nic0 inet manual
 
@@ -45,7 +45,7 @@ iface vmbr0 inet manual
     bridge-stp off
     bridge-fd 0
     bridge-vlan-aware yes
-    bridge-vids 27-28
+    bridge-vids 27 39
 
 auto vmbr0.27
 iface vmbr0.27 inet static
@@ -53,14 +53,19 @@ iface vmbr0.27 inet static
     gateway *.*.*.1
 ```
 
+The bridge VLAN list above matches the live `/etc/network/interfaces` on
+`pve-01`. Keep VLAN 39 when rebuilding the host: VM 203 uses it for Home
+Assistant. The original fix allowed VLANs 27 and 28; the later home automation rollout
+replaced 28 with 39 on this host and its switch port.
+
 ### 2. UniFi port profile
 
-Changed the port connected to pve-01:
+The original fix changed the port connected to pve-01; the After column below reflects the later VLAN 39 update as recorded in the UniFi snapshot:
 
 | Setting | Before | After |
 |---|---|---|
 | Native VLAN | 27 | 23 |
-| Tagged VLANs | — | 27, 28 |
+| Tagged VLANs | — | 27, 39 |
 
 With this change, VLAN 27 traffic arrives at UniFi **tagged** (from `vmbr0.27`) and is correctly placed on VLAN 27. VLAN 23 is native but unused by this host.
 
@@ -97,52 +102,28 @@ bridge vlan show dev veth200i0
 | Gateway | *.*.*.1 | 27 |
 | nut-01 (LXC 200) | *.*.*.*/24 | 27 |
 
-## Post-Apply: Persist veth VLAN Assignments
+## Post-Apply: Verify LXC VLAN Assignments
 
-The `bpg/proxmox` provider does not persist bridge VLAN assignments for veth interfaces. After every `terraform apply` (or container restart), run the following on **pve-01** to restore VLAN 27 tagging for each container:
-
-```bash
-# restart containers to createn bridge link
-pct stop 200 && pct start 200
-pct stop 201 && pct start 201
-pct stop 202 && pct start 202
-pct stop 203 && pct start 203
-
-# nut-01 (CT 200)
-bridge vlan add dev veth200i0 vid 27 pvid untagged
-
-# monitoring-01 (CT 201)
-bridge vlan add dev veth201i0 vid 27 pvid untagged
-
-# jellyfin (CT 205)
-bridge vlan add dev veth205i0 vid 27 pvid untagged
-
-# homeautomation-01 (VM 203, VLAN 39) — VM, not LXC; VLAN tag handled by vmbr0 trunk, no manual veth fixup needed
-```
-
-Verify each with:
+On 2026-10-10, all three running LXCs had VLAN 27 `PVID Egress Untagged`
+**without** `vlan-fixup.service` installed. The old claim that every reboot or
+Terraform apply loses this assignment is not established for the current host.
+Check after a reboot or apply; fix only an assignment that is actually missing:
 
 ```bash
+pct list  # current LXCs: 200, 201, 205; VM 203 is not an LXC
 bridge vlan show dev veth200i0
 bridge vlan show dev veth201i0
-bridge vlan show dev veth202i0
-bridge vlan show dev veth203i0
+bridge vlan show dev veth205i0
+
+# Run only the command(s) for running containers missing VLAN 27:
+bridge vlan add dev veth200i0 vid 27 pvid untagged
+bridge vlan add dev veth201i0 vid 27 pvid untagged
+bridge vlan add dev veth205i0 vid 27 pvid untagged
 ```
 
-Expected output for each — VLAN 27 should appear with `PVID Egress Untagged`:
-
-```
-port              vlan-id
-veth200i0         27 PVID Egress Untagged
-```
-
-> Note: the container must be running for its veth interface to exist.
+VM 203 uses VLAN 39 through `vmbr0` and needs no LXC veth command.
+The affected container must be running for its veth interface to exist.
 
 ## TODO
 
 - Consider moving Proxmox host to VLAN 23 (UniFi management network) long-term for cleaner separation between hypervisor management and workloads
-- Automate the veth VLAN fix above as an Ansible task targeting pve-01 (requires adding pve-01 to inventory)
-
-<br>
-
-+ *Investigate why Terraform `bpg/proxmox` provider does not persist bridge VLAN assignments for veth interfaces — may need a post-apply provisioner - That's a provider limitation, not a config error.*

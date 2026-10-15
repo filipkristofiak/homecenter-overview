@@ -79,8 +79,10 @@ checklist, not archaeology.
 **Blast radius drives placement.** Most services run as containers on the trusted
 server VLAN. The home-automation stack — which runs third-party integrations and has a
 web-facing UI — got a full VM on its own *isolated* VLAN instead, with an explicit
-allowlist firewall policy (UI port in, Zigbee coordinator out, SSH for Ansible,
-one port for Prometheus scraping). Same hypervisor, deliberately different trust level.
+allowlist firewall policy (UI port in, SSH for Ansible, one port for Prometheus scraping;
+the Zigbee coordinator lives inside the same VLAN, so its traffic never crosses the
+firewall). The media player gets the same treatment: an isolated VLAN with exactly one
+allow rule, to Jellyfin. Same hypervisor, deliberately different trust level.
 
 **Root is the deployment user — deliberately.** Ansible connects as root with a
 dedicated SSH key. The LXC appliance containers have no other users by design, so
@@ -114,12 +116,24 @@ exporter authenticates with a revocable read-only token rather than a user passw
 
 ## What it actually runs
 
-- **Media**: Jellyfin in a container, serving libraries from a ZFS dataset over NFS
-- **Home automation**: Home Assistant stack in an isolated VM (MQTT + Zigbee-over-network planned as the mesh grows)
+- **Media**: Jellyfin in a container, serving libraries from a ZFS dataset over NFS and
+  configured through its own HTTP API by Ansible (first-run wizard, libraries, a
+  restricted playback user); the Kodi box sits on its own isolated Media VLAN whose
+  only path inward is a single allow rule to Jellyfin's port
+- **Home automation**: Home Assistant, Mosquitto and Zigbee2MQTT in an isolated VM; a
+  PoE-powered network Zigbee coordinator sits on the same VLAN, so radio traffic never
+  crosses a zone boundary, and the broker and Z2M frontend listen only on loopback
 - **Power resilience**: NUT server monitoring a USB-attached UPS, exposing status
   network-wide and feeding Prometheus
+- **Backups**: a weekly snapshot-mode `vzdump` of the Home Assistant VM to an NFS
+  dataset on the TrueNAS pool — off the NVMe that runs everything, with the untested
+  restore and the remaining gaps written down rather than glossed over
 - **Observability**: the Prometheus/Grafana stack described above, monitoring
   everything including itself
+- **Service health**: Periscope, a LAN-only dashboard and TUI on the monitoring
+  container, checks every guest against a contract derived from the architecture
+  diagrams — HTTP/TCP probes, Prometheus series, and a textfile collector on the HA VM
+  reporting container health and Zigbee device availability
 - **Kubernetes**: a single-node k3s cluster in a dedicated VM — a landing zone for
   stable home services and data-platform learning projects (Postgres, Redpanda,
   Dagster), with PVs on their own disk via the local-path provisioner
@@ -128,11 +142,11 @@ exporter authenticates with a revocable read-only token rather than a user passw
 
 Every service has a runbook: what was deployed, the key decisions and *why* (as a
 decision table), pre-flight checklists, verification commands, and known follow-ups.
-When something broke — containers silently losing VLAN assignments after reboot, a
+When something broke — containers apparently losing VLAN assignments after reboot, a
 25-second SSH login delay traced through PAM into cgroup namespaces — the outcome was
-a root-cause writeup and, where possible, an automated fix (e.g. a systemd oneshot
-service, deployed by Ansible, that re-derives VLAN assignments from container configs
-at boot; no hardcoded IDs).
+a root-cause writeup and, where useful, an automated fix kept as code (e.g. a systemd
+oneshot that re-derives VLAN assignments from container configs; a later re-check
+showed the host no longer needs it, so it stays undeployed until the fault recurs).
 
 The repo also tracks its own debt honestly: what's manual and why, what's not yet
 automated, and the ordered plan to close each gap. I find that discipline — knowing
@@ -157,10 +171,12 @@ configuration via its REST API, host network config) into code.
 - [Milestones](#milestones)
 - [Naming conventions](docs/architecture/naming.md)
 - [Pinned image versions](docs/architecture/image-versions.md)
+- [Git workflow](docs/git-workflow.md) — branch, commit and merge policy for humans and agents
 - [IP addressing](docs/network/ip-addressing.md) - redacted
 - [Hardware inventory](docs/infrastructure/hardware_inventory.md) - redacted
 - [Network diagram](docs/network/diagram.md) - redacted
-- Runbooks: [Home Automation](docs/runbooks/homeautomation-vm.md) · [Jellyfin](docs/runbooks/jellyfin-lxc.md) · [Monitoring](docs/runbooks/monitoring-lxc.md) · [NUT](docs/runbooks/nut-server-lxc.md) · [TrueNAS](docs/runbooks/truenas-init-notes.md) · [TrueNAS SATA passthrough fault](docs/runbooks/truenas-sata-passthrough-fault.md) · [NVMe health](docs/runbooks/pve-01-nvme-health.md) · [k3s](docs/runbooks/k3s-vm.md) · [Image version pinning](docs/runbooks/image-version-pinning.md)
+- [Home automation design](docs/home_automation/home-automation.md)
+- Runbooks: [Home Automation](docs/runbooks/homeautomation-vm.md) · [Jellyfin](docs/runbooks/jellyfin-lxc.md) · [Monitoring](docs/runbooks/monitoring-lxc.md) · [Periscope](docs/runbooks/periscope.md) · [Service-health collector](docs/runbooks/service-health-collector.md) · [NUT](docs/runbooks/nut-server-lxc.md) · [TrueNAS](docs/runbooks/truenas-init-notes.md) · [TrueNAS SATA passthrough fault](docs/runbooks/truenas-sata-passthrough-fault.md) · [NVMe health](docs/runbooks/pve-01-nvme-health.md) · [pve-01 backups](docs/runbooks/pve-01-backups.md) · [k3s](docs/runbooks/k3s-vm.md) · [Image version pinning](docs/runbooks/image-version-pinning.md)
 
 ---
 

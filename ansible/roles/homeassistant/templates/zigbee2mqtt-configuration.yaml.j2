@@ -1,0 +1,21 @@
+# Ansible seeds this file once. Zigbee2MQTT owns its formatting and migrations.
+serial:
+  port: tcp://{{ zigbee_coordinator_ip }}:6638
+  adapter: zstack
+mqtt:
+  server: mqtt://mosquitto:1883
+  user: z2m
+  password: '!secret.yaml mqtt_password'
+homeassistant:
+  enabled: true
+frontend:
+  enabled: true
+  port: 8080
+advanced:
+  channel: {{ zigbee_channel }}
+  pan_id: {{ zigbee_pan_id }}
+  ext_pan_id: {{ zigbee_ext_pan_id | to_json }}
+  network_key: '!secret.yaml network_key'
+availability:
+  enabled: true
+version: 5

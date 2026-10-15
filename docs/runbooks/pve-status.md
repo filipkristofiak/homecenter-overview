@@ -21,7 +21,7 @@ pip install -r tools/pve/requirements.txt
 ```bash
 source tools/pve/.venv/bin/activate
 python tools/pve/status.py             # render in terminal
-python tools/pve/status.py --html out.html   # also export as HTML
+python tools/pve/status.py --web-dir DIR   # write DIR/public/index.html (static-site export)
 python tools/pve/status.py --publish   # push HTML to the monitoring-01 status page
 ```
 
@@ -72,7 +72,9 @@ python tools/pve/status.py --publish   # push HTML to the monitoring-01 status p
 - NVMe footer reads `/var/lib/prometheus/node-exporter/nvme.prom` on the host (written
   every 5 min by the SMART collector, see
   [pve-01-nvme-health.md](pve-01-nvme-health.md)); health flag thresholds mirror the
-  Prometheus alert rules, and the line warns in red if the file is >30 min stale
+  Prometheus alert rules, and the line warns in red if the file is >30 min stale.
+  This footer appears only in terminal output (as shown above); both the
+  `--web-dir` export and `--publish` HTML omit it.
 
 Requires `~/.ssh/homelab_id` key with access to `***@*.*.*.*`.
 
@@ -80,7 +82,7 @@ Requires `~/.ssh/homelab_id` key with access to `***@*.*.*.*`.
 
 ## Web status page
 
-`--publish` exports the exact terminal rendering as HTML (rich `Console(record=True)`
+`--publish` exports the resource table as HTML (rich `Console(record=True)`
 + `export_html` with an Ubuntu-terminal theme: aubergine background, Tango palette;
 fixed 134-column width, rendered at 80% font size)
 and scps it to `monitoring-01:/opt/monitoring/status/index.html`, where an

@@ -1,10 +1,50 @@
 services:
+  mosquitto:
+    container_name: mosquitto
+    image: eclipse-mosquitto:{{ mosquitto_image_tag }}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:1883:1883"
+    volumes:
+      - ./mosquitto/config:/mosquitto/config:ro
+      - ./mosquitto/data:/mosquitto/data
+    healthcheck:
+      test: ["CMD", "nc", "-z", "127.0.0.1", "1883"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  zigbee2mqtt:
+    container_name: zigbee2mqtt
+    image: koenkk/zigbee2mqtt:{{ zigbee2mqtt_image_tag }}
+    restart: unless-stopped
+    depends_on:
+      - mosquitto
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ./zigbee2mqtt/data:/app/data
+    environment:
+      TZ: Europe/Prague
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
   homeassistant:
     container_name: homeassistant
     image: ghcr.io/home-assistant/home-assistant:{{ homeassistant_image_tag }}
     network_mode: host
-    privileged: true
     restart: unless-stopped
     volumes:
       - ./config:/config
       - /etc/localtime:/etc/localtime:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:8123/manifest.json"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s

@@ -23,7 +23,7 @@ Requires the `~/.ssh/homelab_id` key with access to `***@*.*.*.*`.
 ```bash
 source tools/pve/.venv/bin/activate
 python tools/pve/status.py                    # render in terminal
-python tools/pve/status.py --html out.html    # also export as HTML
+python tools/pve/status.py --web-dir DIR    # write DIR/public/index.html (static-site export)
 python tools/pve/status.py --publish          # push HTML to the monitoring-01 status page
 deactivate
 ```

@@ -16,11 +16,13 @@ a new major version.
 | Grafana | `grafana_image_tag` | `ansible/roles/monitoring/defaults/main.yml` | `12.4.2` |
 | status-page nginx | `nginx_image_tag` | `ansible/roles/monitoring/defaults/main.yml` | `1.31.2-alpine` |
 | Home Assistant | `homeassistant_image_tag` | `ansible/roles/homeassistant/defaults/main.yml` | `2026.5.4` |
+| Mosquitto | `mosquitto_image_tag` | `ansible/roles/homeassistant/defaults/main.yml` | `2.1.2-alpine` |
+| Zigbee2MQTT | `zigbee2mqtt_image_tag` | `ansible/roles/homeassistant/defaults/main.yml` | `2.14.2` |
 
-All five vars were set to whatever was already running in production at the time of
-pinning (2026-07-21) — see [`docs/runbooks/image-version-pinning.md`](../runbooks/image-version-pinning.md)
-for how each was discovered. Bumping a version is a deliberate, one-line diff to the
-relevant `defaults/main.yml`, followed by a normal playbook run.
+The five pre-existing image versions were captured from running containers on
+2026-07-21. Mosquitto and Zigbee2MQTT were pinned when the Zigbee stack was
+deployed, from the published image tags. Bump a version deliberately in
+`defaults/main.yml`, then follow the runbook below.
 
 ## Deliberately not pinned
 

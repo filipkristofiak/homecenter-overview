@@ -92,14 +92,14 @@ def mask_value(field: str) -> str:
     return f"<REDACTED:{field}>"
 
 
+SENSITIVE_FIELDS = {"guest_token", "utm_token"}
+
+
 def mask_secrets(obj: object) -> object:
-    """
-    Recursively walk the JSON structure and redact all x_-prefixed fields.
-    Works on dicts, lists, and primitives at any nesting depth.
-    """
+    """Recursively redact x_-prefixed secrets and known unprefixed tokens."""
     if isinstance(obj, dict):
         return {
-            k: mask_value(k) if (k.startswith("x_") and isinstance(v, str) and v)
+            k: mask_value(k) if ((k.startswith("x_") or k in SENSITIVE_FIELDS) and isinstance(v, str) and v)
             else mask_secrets(v)
             for k, v in obj.items()
         }

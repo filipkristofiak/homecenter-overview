@@ -1,0 +1,58 @@
+---
+- name: Install MQTT client for service health collection
+  apt:
+    name: python3-paho-mqtt
+    state: present
+  when: periscope_collector_mqtt | length > 0
+
+- name: Create service health collector configuration directory
+  file:
+    path: /etc/periscope-collector
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Deploy MQTT collector password
+  copy:
+    content: "{{ periscope_collector_mqtt_password | trim }}\n"
+    dest: /etc/periscope-collector/mqtt-password
+    owner: root
+    group: root
+    mode: "0600"
+  when: periscope_collector_mqtt | length > 0
+  no_log: true
+
+- name: Deploy service health collector script
+  copy:
+    src: periscope-collector
+    dest: /usr/local/bin/periscope-collector
+    mode: "0755"
+
+- name: Deploy service health collector configuration
+  template:
+    src: config.json.j2
+    dest: /etc/periscope-collector/config.json
+    mode: "0600"
+
+- name: Deploy service health collector systemd units
+  copy:
+    src: "{{ item }}"
+    dest: "/etc/systemd/system/{{ item }}"
+    mode: "0644"
+  loop:
+    - periscope-collector.service
+    - periscope-collector.timer
+
+- name: Enable service health collector timer
+  systemd:
+    name: periscope-collector.timer
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Run initial service health collection
+  systemd:
+    name: periscope-collector.service
+    state: started
+  changed_when: false

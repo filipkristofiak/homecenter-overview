@@ -36,7 +36,7 @@
         <mxCell id="gw" value="UniFi gateway + switch" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;" vertex="1" parent="netlane">
           <mxGeometry x="240" y="50" width="240" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="slzb" value="SLZB-06M&#xa;Zigbee coordinator (network)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="netlane">
+        <mxCell id="slzb" value="SLZB-06U&#xa;Zigbee coordinator · isolated VLAN · PoE" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="netlane">
           <mxGeometry x="800" y="50" width="240" height="60" as="geometry" />
         </mxCell>
 

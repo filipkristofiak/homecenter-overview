@@ -1,38 +1,42 @@
 # VLAN Fixup Systemd Service — pve-01
 
-## Problem
+## Historical motivation
 
-The `bpg/proxmox` Terraform provider does not persist bridge VLAN assignments for
-LXC veth interfaces. After every reboot (or `terraform apply`), each container's
-veth interface loses its `PVID Egress Untagged` assignment for VLAN 27, breaking
-container networking.
+The role was written to restore LXC bridge VLAN assignments reportedly lost
+after reboot or Terraform apply. That failure has **not** been reproduced on
+the current host: on 2026-10-10, CTs 200, 201, and 205 each had VLAN 27
+`PVID Egress Untagged` despite the service not being installed.
 
-## Solution
+## Implementation status
 
-A systemd oneshot service (`vlan-fixup.service`) deployed via Ansible runs on pve-01
-after boot. It reads all LXC configs in `/etc/pve/lxc/*.conf`, extracts the VLAN tag
-from each container's `net0` line, and re-applies the bridge VLAN assignment via
-`bridge vlan add`.
+The Ansible role implements a systemd oneshot service (`vlan-fixup.service`)
+that reads LXC configs in `/etc/pve/lxc/*.conf`, extracts each `net0` VLAN tag,
+and re-applies bridge VLAN assignments via `bridge vlan add`. The script is
+dynamic; no hardcoded container IDs.
 
-The script is fully dynamic — no hardcoded container IDs. Adding or removing a
-container only requires re-running the Ansible playbook.
+**Not deployed on pve-01 as checked on 2026-10-10:** `systemctl is-enabled
+vlan-fixup.service` returned `not-found`. The running LXCs nevertheless had
+correct VLAN assignments. Do not deploy this role without first observing a
+lost assignment after reboot or apply. Use the
+[manual checks](pve-01-network-fix.md#post-apply-verify-lxc-vlan-assignments)
+if one is missing.
 
 ## Ansible Playbook
 
 **Role:** `ansible/roles/pve_vlan_fixup`
 **Playbook:** `ansible/playbooks/pve-vlan-fixup.yml`
-**Target host:** `pve-01` (`*.*.*.***`) in the `proxmox_hosts` inventory group
+**Target host:** `pve-01` (`*.*.*.*`) in the `proxmox_hosts` inventory group
 
-### Deploy / update the service
+### Deploy only if the problem recurs
 
 ```bash
 ansible-playbook -i ansible/inventory/hosts.yml ansible/playbooks/pve-vlan-fixup.yml
 ```
 
-Re-run this after adding or removing LXC containers so the service script reflects
-the current container state.
+The script reads LXC configs at runtime; adding a container does not require
+regenerating the script.
 
-## Installed Files on pve-01
+## Files installed by the role
 
 | File | Description |
 |---|---|
@@ -47,7 +51,7 @@ For each `/etc/pve/lxc/<id>.conf`:
 2. Checks if the veth interface (`veth<id>i0`) exists — skips if the container is stopped
 3. Runs `bridge vlan add dev veth<id>i0 vid <vlan> pvid untagged`
 
-## Current Containers (as of last Ansible run)
+## Current containers (checked 2026-10-10)
 
 | Container | CT ID | IP | VLAN | veth interface |
 |---|---|---|---|---|
@@ -58,9 +62,8 @@ For each `/etc/pve/lxc/<id>.conf`:
 
 ## Systemd Service Details
 
-The service is ordered after `pve-guests.target` — the Proxmox target reached once
-all `start_on_boot` containers have started — so veth interfaces are guaranteed to
-exist before the script runs.
+When installed, the service is ordered after `pve-guests.target`, reached after
+the guests are started, so it can find their veth interfaces.
 
 ```
 After=network.target pve-guests.target
@@ -83,13 +86,12 @@ systemctl status vlan-fixup
 journalctl -t vlan-fixup
 ```
 
-Expected output per container:
+Expected output for the three current LXCs (after the service is deployed):
 
 ```
 vlan-fixup: applied VLAN 27 to veth200i0 (CT 200)
 vlan-fixup: applied VLAN 27 to veth201i0 (CT 201)
-vlan-fixup: applied VLAN 27 to veth202i0 (CT 202)
-vlan-fixup: applied VLAN 27 to veth203i0 (CT 203)
+vlan-fixup: applied VLAN 27 to veth205i0 (CT 205)
 ```
 
 ### Verify bridge VLAN assignments
@@ -97,8 +99,7 @@ vlan-fixup: applied VLAN 27 to veth203i0 (CT 203)
 ```bash
 bridge vlan show dev veth200i0
 bridge vlan show dev veth201i0
-bridge vlan show dev veth202i0
-bridge vlan show dev veth203i0
+bridge vlan show dev veth205i0
 ```
 
 Each should show:
@@ -108,20 +109,17 @@ port              vlan-id
 veth<id>i0        27 PVID Egress Untagged
 ```
 
-### Run the fix manually (without rebooting)
+### Run the fix manually (after deploying the role)
 
 ```bash
 /usr/local/sbin/vlan-fixup.sh
 ```
 
-## Runbook: After terraform apply
+## Runbook: After Terraform apply or adding an LXC
 
-1. Verify containers are running: `pct list`
-2. Run the fixup script manually: `/usr/local/sbin/vlan-fixup.sh`
-3. Confirm connectivity from inside a container: `ping *.*.*.1`
-
-## Runbook: Adding a new LXC container
-
-1. Add container to Terraform and apply
-2. Re-run the Ansible playbook — the script regenerates automatically
-3. Run the fixup script manually for the new container or reboot pve-01
+1. Verify running containers with `pct list`.
+2. Inspect their bridge assignments using the
+   [manual checks](pve-01-network-fix.md#post-apply-verify-lxc-vlan-assignments).
+3. If an assignment is missing, correct that veth manually and verify container
+   connectivity to `*.*.*.1`. Consider deploying the role only if the
+   problem recurs; if installed, its script reads LXC configs dynamically.

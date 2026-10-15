@@ -1,0 +1,7 @@
+[Unit]
+Description=Collect service health metrics for node-exporter
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/periscope-collector --config /etc/periscope-collector/config.json
+TimeoutStartSec=25

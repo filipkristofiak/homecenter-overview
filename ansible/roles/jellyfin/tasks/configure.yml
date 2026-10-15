@@ -1,0 +1,221 @@
+---
+# Server state through the Jellyfin HTTP API: first-run wizard, libraries and
+# non-admin playback users. Every step reads first and writes only on drift.
+#
+# Reads (and the admin login/logout they need) run even under --check so the
+# conditions evaluate real state. uri has no check mode, so --check skips the
+# writes instead of reporting them as changes.
+
+# While starting, Jellyfin answers 200 with an HTML splash page, so wait for
+# the JSON body rather than the status code alone.
+- name: Wait for Jellyfin API
+  uri:
+    url: "{{ jellyfin_api_url }}/System/Info/Public"
+  register: jellyfin_public_info
+  until: jellyfin_public_info.json.StartupWizardCompleted is defined
+  retries: 60
+  delay: 2
+  check_mode: false
+
+- name: Complete first-run wizard
+  when: not jellyfin_public_info.json.StartupWizardCompleted
+  block:
+    - name: Wizard - language and metadata defaults
+      uri:
+        url: "{{ jellyfin_api_url }}/Startup/Configuration"
+        method: POST
+        body_format: json
+        body:
+          UICulture: en-US
+          MetadataCountryCode: "{{ jellyfin_metadata_country }}"
+          PreferredMetadataLanguage: "{{ jellyfin_metadata_language }}"
+        status_code: 204
+      changed_when: true
+
+    # Jellyfin creates the initial user lazily on this GET.
+    - name: Wizard - load initial user
+      uri:
+        url: "{{ jellyfin_api_url }}/Startup/User"
+
+    - name: Wizard - set admin name and password
+      uri:
+        url: "{{ jellyfin_api_url }}/Startup/User"
+        method: POST
+        body_format: json
+        body:
+          Name: "{{ jellyfin_admin_user }}"
+          Password: "{{ jellyfin_admin_password }}"
+        status_code: 204
+      changed_when: true
+      no_log: true
+
+    - name: Wizard - remote access
+      uri:
+        url: "{{ jellyfin_api_url }}/Startup/RemoteAccess"
+        method: POST
+        body_format: json
+        body:
+          EnableRemoteAccess: true
+        status_code: 204
+      changed_when: true
+
+    - name: Wizard - complete
+      uri:
+        url: "{{ jellyfin_api_url }}/Startup/Complete"
+        method: POST
+        status_code: 204
+      changed_when: true
+
+- name: Log in as admin
+  uri:
+    url: "{{ jellyfin_api_url }}/Users/AuthenticateByName"
+    method: POST
+    body_format: json
+    body:
+      Username: "{{ jellyfin_admin_user }}"
+      Pw: "{{ jellyfin_admin_password }}"
+    headers:
+      Authorization: "{{ jellyfin_api_client }}"
+  register: jellyfin_admin_login
+  no_log: true
+  check_mode: false
+
+- name: Set API auth header
+  set_fact:
+    jellyfin_auth: '{{ jellyfin_api_client }}, Token="{{ jellyfin_admin_login.json.AccessToken }}"'
+  no_log: true
+
+# --- Libraries -------------------------------------------------------------
+
+- name: Read libraries
+  uri:
+    url: "{{ jellyfin_api_url }}/Library/VirtualFolders"
+    headers:
+      Authorization: "{{ jellyfin_auth }}"
+  register: jellyfin_virtual_folders
+  check_mode: false
+
+- name: Check existing library types
+  assert:
+    that: (existing.CollectionType | lower) == item.collection_type
+    fail_msg: >-
+      Library "{{ item.name }}" exists as {{ existing.CollectionType }}, wanted {{ item.collection_type }}.
+      Jellyfin can't change a library's type; delete it in the dashboard or rename it in jellyfin_libraries.
+    quiet: true
+  loop: "{{ jellyfin_libraries | selectattr('name', 'in', jellyfin_virtual_folders.json | map(attribute='Name')) }}"
+  loop_control:
+    label: "{{ item.name }}"
+  vars:
+    existing: "{{ jellyfin_virtual_folders.json | selectattr('Name', 'equalto', item.name) | first }}"
+
+- name: Create missing libraries
+  uri:
+    url: >-
+      {{ jellyfin_api_url }}/Library/VirtualFolders?{{ {'name': item.name, 'collectionType': item.collection_type,
+      'paths': item.path, 'refreshLibrary': 'false'} | urlencode }}
+    method: POST
+    body_format: json
+    body:
+      LibraryOptions: {}
+    headers:
+      Authorization: "{{ jellyfin_auth }}"
+    status_code: 204
+  changed_when: true
+  register: jellyfin_libraries_created
+  loop: "{{ jellyfin_libraries | rejectattr('name', 'in', jellyfin_virtual_folders.json | map(attribute='Name')) }}"
+  loop_control:
+    label: "{{ item.name }} -> {{ item.path }}"
+
+- name: Add missing library paths
+  uri:
+    url: "{{ jellyfin_api_url }}/Library/VirtualFolders/Paths?refreshLibrary=false"
+    method: POST
+    body_format: json
+    body:
+      Name: "{{ item.name }}"
+      PathInfo:
+        Path: "{{ item.path }}"
+    headers:
+      Authorization: "{{ jellyfin_auth }}"
+    status_code: 204
+  changed_when: true
+  register: jellyfin_library_paths_added
+  when: item.path not in existing.Locations
+  loop: "{{ jellyfin_libraries | selectattr('name', 'in', jellyfin_virtual_folders.json | map(attribute='Name')) }}"
+  loop_control:
+    label: "{{ item.name }} -> {{ item.path }}"
+  vars:
+    existing: "{{ jellyfin_virtual_folders.json | selectattr('Name', 'equalto', item.name) | first }}"
+
+- name: Scan libraries after changes
+  uri:
+    url: "{{ jellyfin_api_url }}/Library/Refresh"
+    method: POST
+    headers:
+      Authorization: "{{ jellyfin_auth }}"
+    status_code: 204
+  changed_when: true
+  when: jellyfin_libraries_created is changed or jellyfin_library_paths_added is changed
+
+# --- Playback users --------------------------------------------------------
+
+- name: Read users
+  uri:
+    url: "{{ jellyfin_api_url }}/Users"
+    headers:
+      Authorization: "{{ jellyfin_auth }}"
+  register: jellyfin_users
+  check_mode: false
+
+- name: Create missing playback users
+  uri:
+    url: "{{ jellyfin_api_url }}/Users/New"
+    method: POST
+    body_format: json
+    body:
+      Name: "{{ item.name }}"
+      Password: "{{ item.password }}"
+    headers:
+      Authorization: "{{ jellyfin_auth }}"
+  changed_when: true
+  register: jellyfin_users_created
+  loop: "{{ jellyfin_playback_users | rejectattr('name', 'in', jellyfin_users.json | map(attribute='Name')) }}"
+  loop_control:
+    label: "{{ item.name }}"
+  no_log: true
+
+- name: Re-read users with their policies
+  uri:
+    url: "{{ jellyfin_api_url }}/Users"
+    headers:
+      Authorization: "{{ jellyfin_auth }}"
+  register: jellyfin_users_current
+  check_mode: false
+
+# POST /Policy replaces the whole policy, so merge the wanted keys into the
+# current one and send it back only when a key differs.
+- name: Enforce playback user policy
+  uri:
+    url: "{{ jellyfin_api_url }}/Users/{{ user.Id }}/Policy"
+    method: POST
+    body_format: json
+    body: "{{ user.Policy | combine(jellyfin_playback_policy) }}"
+    headers:
+      Authorization: "{{ jellyfin_auth }}"
+    status_code: 204
+  changed_when: true
+  when: user.Policy | combine(jellyfin_playback_policy) != user.Policy
+  loop: "{{ jellyfin_playback_users | map(attribute='name') }}"
+  loop_control:
+    label: "{{ item }}"
+  vars:
+    user: "{{ jellyfin_users_current.json | selectattr('Name', 'equalto', item) | first }}"
+
+- name: Log out admin API session
+  uri:
+    url: "{{ jellyfin_api_url }}/Sessions/Logout"
+    method: POST
+    headers:
+      Authorization: "{{ jellyfin_auth }}"
+    status_code: 204
+  check_mode: false

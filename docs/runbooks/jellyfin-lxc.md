@@ -28,10 +28,14 @@ terraform/pve-01/
 
 ansible/
   inventory/hosts.yml       added jellyfin (pve_lxc group, *.*.*.*)
+  inventory/host_vars/jellyfin.yml  vaulted jellyfin_admin_password, jellyfin_kodi_password
   playbooks/jellyfin.yml    entry-point playbook
   roles/jellyfin/
-    defaults/main.yml       NFS source, mount path, mount options, Jellyfin repo URL
+    defaults/main.yml       NFS source, mount path, mount options, Jellyfin repo URL,
+                            API settings, libraries, playback users and their policy
     tasks/main.yml          install prerequisites, add Jellyfin repo, install, NFS mount, start service
+    tasks/configure.yml     server state via the Jellyfin API: first-run wizard,
+                            libraries, non-admin playback users
     handlers/main.yml       restart jellyfin, refresh apt cache
 ```
 
@@ -88,11 +92,20 @@ ansible-playbook playbooks/jellyfin.yml \
   -e jellyfin_truenas_nfs_path=/mnt/spinners-01/media
 ```
 
-### 4. First-run setup wizard
+The playbook also configures the server through the Jellyfin HTTP API
+(`tasks/configure.yml`), so no first-run clicks are needed:
 
-1. Open `http://*.*.*.*:8096`
-2. Create the admin account
-3. Add Library → Movies / TV Shows, folder `/mnt/media` (or subdirectories)
+- **Wizard** (fresh install only): admin `jellyfin` with the vaulted
+  `jellyfin_admin_password`, metadata language `en`, country `CZ`.
+- **Libraries**: `Movies` → `/mnt/media/movies`, `TV Shows` →
+  `/mnt/media/tv_shows`, created when missing and scanned once after a change.
+  Default library options, so Jellyfin identifies titles itself (TMDB/OMDb).
+- **Playback users**: `kodi` (pi5), created with `jellyfin_kodi_password`;
+  policy enforced every run: not admin, no deletion, no remote control of
+  other users, all libraries.
+
+Every step reads first and writes only on drift; a second run reports
+`changed=0`. `--check` runs the reads but skips the API writes.
 
 ---
 
@@ -130,7 +143,7 @@ media folders — at that point, mount read-write and revisit maproot.
 | Hostname | `jellyfin` (no `-XX` suffix) | Matches `naming.md` §3 `<service>` pattern — single well-known service with its own identity, same as `truenas` |
 | CT ID | `205` | Next free after k3s-01 (204) |
 | IP | `*.*.*.*/24` | VLAN 27, static; next free after k3s-01 (.14) |
-| CPU | 2 cores | Software transcoding baseline; raise to 4+ for 4K or multiple streams |
+| CPU | 4 cores | Raised from 2 on 2026-10-13: with a library of ~3,900 media files, each library scan and its follow-on metadata/artwork pass held 2 cores at 100% for 45–90 min and starved the API. Applied live by Terraform, no container restart |
 | RAM | 2048 MB | Comfortable for 1-2 simultaneous streams |
 | Disk | 16 GB | OS + Jellyfin metadata, artwork, transcode temp (media is on TrueNAS) |
 | NFS mount options | `defaults,ro,_netdev,nofail,x-systemd.automount` | Read-only: Jellyfin never writes into the library (state lives in `/var/lib/jellyfin`), so the client refuses writes at the kernel level regardless of what the NFS server would permit — makes `Maproot User: root` harmless. `ro` must come *after* `defaults` — `defaults` expands to `rw,suid,dev,exec,auto,nouser,async` and options are applied left-to-right, so a leading `ro` gets silently overridden by the trailing `rw` inside `defaults`. Verify post-deploy: `findmnt -no OPTIONS /mnt/media \| grep -ow ro` |

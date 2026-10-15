@@ -55,13 +55,14 @@ deactivate
 
 ## Secret masking
 
-All `x_`-prefixed fields are redacted before writing to disk -- this covers
-passphrases, PSKs, WEP keys, RADIUS secrets, SNMP community strings,
-IPsec PSKs, WireGuard private keys, and SSH credentials.
+All `x_`-prefixed fields and the UniFi `guest_token` and `utm_token` are
+redacted before writing to disk. This covers passphrases, PSKs, WEP keys,
+RADIUS secrets, SNMP community strings, IPsec PSKs, WireGuard private keys,
+and SSH credentials.
 ```json
-"x_passphrase": "REDACTED:x_passphrase",
-"x_ipsec_secret": "<REDACTED:x_ipsec_secret>",
-"x_wireguard_private_key": "<REDACTED:x_wireguard_private_key>"
+"x_passphrase": "<REDACTED:x_passphrase>",
+"guest_token": "<REDACTED:guest_token>",
+"utm_token": "<REDACTED:utm_token>"
 ```
 
 Masking is recursive -- works at any nesting depth across all endpoints.

@@ -167,8 +167,9 @@ smartctl -a /dev/nvme0n1
 
 - **No push notifications** — rules fire in Prometheus/Grafana but nothing is routed
   anywhere. Deploying Alertmanager (or Grafana contact points) is the natural next step.
-- **SMART won't predict everything** — controllers die suddenly without warning. This
-  monitoring reduces surprise; it does not reduce blast radius. Scheduled `vzdump`
-  backups off the drive (e.g. to TrueNAS) are the actual mitigation.
+- **SMART won't predict everything** — controllers die suddenly without warning.
+  Weekly VM 203 backups to TrueNAS mitigate NVMe loss for Home Assistant; other
+  guests and host configuration remain outside that backup. See
+  [pve-01-backups.md](pve-01-backups.md).
 - LVM-thin pool usage on the host is not yet alerted on (visible via pve-exporter /
   node exporter filesystem metrics).

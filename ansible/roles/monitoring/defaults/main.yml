@@ -4,12 +4,13 @@ monitoring_dir: /opt/monitoring
 grafana_port: 3000
 prometheus_port: 9090
 status_page_port: 80
+periscope_port: 8090
+periscope_dist_dir: "{{ lookup('env', 'HOME') }}/projects/tools/lab-deck/dist"
 
 # Prometheus data retention
 prometheus_retention: 30d
 
 node_exporter_port: 9100
-nut_exporter_port: 9199
 pve_exporter_port: 9221
 
 pve_host: "*.*.*.*"

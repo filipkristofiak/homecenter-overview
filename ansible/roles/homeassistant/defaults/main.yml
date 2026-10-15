@@ -3,3 +3,12 @@ homeassistant_dir: /opt/homeassistant
 
 # Pinned image tag — bump deliberately, don't track stable
 homeassistant_image_tag: "2026.5.4"
+mosquitto_image_tag: "2.1.2-alpine"
+zigbee2mqtt_image_tag: "2.14.2"
+
+# Keep these stable once devices are paired. Changing the Zigbee network identity
+# can require re-pairing the entire mesh.
+zigbee_coordinator_ip: "*.*.*.*"
+zigbee_channel: 20
+zigbee_pan_id: "***"
+zigbee_ext_pan_id: "***"

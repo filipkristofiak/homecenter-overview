@@ -1,0 +1,244 @@
+#!/usr/bin/env python3
+"""Collect Docker, HTTP, and MQTT health for node-exporter's textfile collector."""
+
+import argparse
+from datetime import datetime
+import json
+import os
+import re
+import subprocess
+import sys
+import tempfile
+import threading
+import time
+from urllib import error, request
+
+
+# Metric metadata is emitted even when an individual source is unavailable.
+METRICS = (
+    ("periscope_container_running", "Whether the container is running", "gauge"),
+    ("periscope_container_health", "Docker healthcheck status", "gauge"),
+    ("periscope_container_restarts_total", "Container restart count", "counter"),
+    ("periscope_container_started_seconds", "Container start time in Unix seconds", "gauge"),
+    ("periscope_container_image_info", "Configured container image", "gauge"),
+    ("periscope_probe_up", "Whether the HTTP or MQTT probe succeeded", "gauge"),
+    ("periscope_probe_duration_seconds", "HTTP probe duration in seconds", "gauge"),
+    ("periscope_mqtt_bridge_online", "Whether the Zigbee2MQTT bridge is online", "gauge"),
+    ("periscope_mqtt_devices", "Zigbee devices excluding the coordinator", "gauge"),
+    ("periscope_mqtt_broker_uptime_seconds", "Broker uptime in seconds", "gauge"),
+    ("periscope_zigbee_device_info", "Paired Zigbee device", "gauge"),
+    ("periscope_zigbee_device_available", "Zigbee2MQTT availability (1 online, 0 offline)", "gauge"),
+)
+
+
+def sample(samples, name, labels, value):
+    samples[name].append((labels, value))
+
+
+def docker_container(entry, samples):
+    service = entry["service"]
+    try:
+        result = subprocess.run(
+            ["docker", "inspect", "--type", "container", entry["container"]],
+            capture_output=True, text=True, timeout=3, check=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        if re.search(r"No such (?:object|container):", exc.stderr, re.IGNORECASE):
+            sample(samples, "periscope_container_running", {"service": service}, 0)
+            return
+        raise
+
+    container = json.loads(result.stdout)[0]
+    state = container["State"]
+    labels = {"service": service}
+    # Build the entry before recording it: malformed inspect data must not leave
+    # partial metrics for this container in the output.
+    running = int(state["Running"])
+    health = state.get("Health", {}).get("Status", "none")
+    restarts = int(container["RestartCount"])
+    started_at = re.sub(r"(\.\d{6})\d+", r"\1", state["StartedAt"])
+    started = datetime.fromisoformat(started_at).timestamp()
+    image = container["Config"]["Image"]
+    sample(samples, "periscope_container_running", labels, running)
+    sample(samples, "periscope_container_health", {**labels, "health": health}, 1)
+    sample(samples, "periscope_container_restarts_total", labels, restarts)
+    sample(samples, "periscope_container_started_seconds", labels, started)
+    sample(samples, "periscope_container_image_info", {**labels, "image": image}, 1)
+
+
+def http_probe(entry, samples):
+    start = time.monotonic()
+    try:
+        with request.urlopen(request.Request(entry["url"], method="GET"), timeout=3) as response:
+            up = int(200 <= response.status < 300)
+    except (error.URLError, TimeoutError):
+        up = 0
+    duration = time.monotonic() - start
+    labels = {"service": entry["service"], "probe": "http"}
+    sample(samples, "periscope_probe_up", labels, up)
+    sample(samples, "periscope_probe_duration_seconds", labels, duration)
+
+
+def mqtt_state(payload):
+    state = payload.strip()
+    return json.loads(state)["state"] if state.startswith("{") else state
+
+
+def mqtt_probe(config, samples):
+    # Import only when configured; Docker/HTTP-only hosts do not need paho.
+    import paho.mqtt.client as mqtt
+
+    base = config["z2m_base_topic"].rstrip("/")
+    state_topic = base + "/bridge/state"
+    devices_topic = base + "/bridge/devices"
+    uptime_topic = "$SYS/broker/uptime"
+    topics = (state_topic, devices_topic, uptime_topic)
+    messages = {}
+    availability = {}
+    expected = None
+    finished = threading.Event()
+    connected = False
+
+    def on_connect(client, userdata, flags, rc):
+        nonlocal connected
+        if rc != 0:
+            finished.set()
+            return
+        connected = True
+        result, _mid = client.subscribe([(base + "/#", 0), (uptime_topic, 0)])
+        if result != mqtt.MQTT_ERR_SUCCESS:
+            finished.set()
+
+    def on_message(client, userdata, message):
+        nonlocal expected
+        topic = message.topic
+        payload = message.payload.decode("utf-8")
+        if topic in topics:
+            messages[topic] = payload
+            if topic == devices_topic:
+                try:
+                    expected = {
+                        device["friendly_name"] for device in json.loads(payload)
+                        if device["type"] != "Coordinator"
+                    }
+                except (ValueError, TypeError, KeyError):
+                    expected = set()
+        elif topic.startswith(base + "/") and topic.endswith("/availability"):
+            name = topic[len(base) + 1:-len("/availability")]
+            if name and "/" not in name:
+                availability[name] = payload
+        if all(topic in messages for topic in topics) and expected is not None \
+                and expected <= availability.keys():
+            finished.set()
+
+    with open(config["password_file"], encoding="utf-8") as password_file:
+        password = password_file.read().strip()
+    client = mqtt.Client(client_id="periscope-collector")
+    client.username_pw_set(config["username"], password)
+    client.on_connect = on_connect
+    client.on_message = on_message
+    client.connect_async(config["host"], int(config["port"]), keepalive=15)
+    client.loop_start()
+    try:
+        finished.wait(12)
+    finally:
+        client.disconnect()
+        client.loop_stop()
+
+    # A rejected login, unreachable broker, or absent uptime is an observed
+    # failed probe rather than a collector exception.
+    uptime = None
+    if connected and uptime_topic in messages:
+        match = re.match(r"^(\d+)\s+seconds\b", messages[uptime_topic])
+        if match is None:
+            raise ValueError("invalid broker uptime")
+        uptime = int(match.group(1))
+
+    bridge_online = None
+    if state_topic in messages:
+        bridge_online = int(mqtt_state(messages[state_topic]) == "online")
+
+    devices = None
+    if devices_topic in messages:
+        devices = json.loads(messages[devices_topic])
+        if not isinstance(devices, list):
+            raise ValueError("bridge devices is not a list")
+        paired = [device for device in devices if device["type"] != "Coordinator"]
+
+    broker = {"service": config["broker_service"]}
+    bridge = {"service": config["z2m_service"]}
+    sample(samples, "periscope_probe_up", {**broker, "probe": "mqtt"}, int(uptime is not None))
+    if uptime is not None:
+        sample(samples, "periscope_mqtt_broker_uptime_seconds", broker, uptime)
+    if bridge_online is not None:
+        sample(samples, "periscope_mqtt_bridge_online", bridge, bridge_online)
+    if devices is not None:
+        sample(samples, "periscope_mqtt_devices", bridge, len(paired))
+        for device in paired:
+            name = device["friendly_name"]
+            model = (device.get("definition") or {}).get("model") or device.get("model_id") or "unknown"
+            sample(samples, "periscope_zigbee_device_info",
+                   {**bridge, "device": name, "type": device["type"], "model": model}, 1)
+            if name in availability:
+                sample(samples, "periscope_zigbee_device_available",
+                       {**bridge, "device": name}, int(mqtt_state(availability[name]) == "online"))
+
+
+def render(samples):
+    def label_value(value):
+        return str(value).replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+
+    lines = []
+    for name, help_text, metric_type in METRICS:
+        lines.append(f"# HELP {name} {help_text}")
+        lines.append(f"# TYPE {name} {metric_type}")
+        for labels, value in samples[name]:
+            label_text = ",".join(f'{key}="{label_value(label)}"' for key, label in labels.items())
+            lines.append(f"{name}{{{label_text}}} {value}")
+    return "\n".join(lines) + "\n"
+
+
+def write_output(path, content):
+    if path == "-":
+        sys.stdout.write(content)
+        return
+    fd, temporary = tempfile.mkstemp(dir=os.path.dirname(os.path.abspath(path)), suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as output:
+            output.write(content)
+        os.chmod(temporary, 0o644)
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--config", required=True, help="Collector JSON configuration")
+    parser.add_argument("--output", help="Override config output path (- for stdout)")
+    args = parser.parse_args()
+    with open(args.config, encoding="utf-8") as config_file:
+        config = json.load(config_file)
+
+    samples = {name: [] for name, _, _ in METRICS}
+    for entry in config.get("containers", []):
+        try:
+            docker_container(entry, samples)
+        except Exception as exc:
+            print(f"container inspection failed: {exc}", file=sys.stderr)
+    for entry in config.get("http_probes", []):
+        try:
+            http_probe(entry, samples)
+        except Exception as exc:
+            print(f"HTTP probe failed: {exc}", file=sys.stderr)
+    if config.get("mqtt"):
+        try:
+            mqtt_probe(config["mqtt"], samples)
+        except Exception as exc:
+            print(f"MQTT collection failed: {exc}", file=sys.stderr)
+    write_output(args.output if args.output is not None else config["output"], render(samples))
+
+
+if __name__ == "__main__":
+    main()

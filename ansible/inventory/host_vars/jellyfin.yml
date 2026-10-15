@@ -1,0 +1,5 @@
+---
+# Host-only secrets for jellyfin, stored as inline ansible-vault values
+# (ansible-vault encrypt_string --stdin-name <var>):
+#   jellyfin_admin_password
+#   jellyfin_kodi_password

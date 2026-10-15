@@ -6,3 +6,20 @@
   roles:
     - common
     - homeassistant
+    - role: periscope_collector
+      vars:
+        periscope_collector_containers:
+          - { service: homeassistant, container: homeassistant }
+          - { service: mosquitto, container: mosquitto }
+          - { service: zigbee2mqtt, container: zigbee2mqtt }
+        periscope_collector_http_probes:
+          - { service: slzb-06u, url: "http://{{ zigbee_coordinator_ip }}/ha_info" }
+        periscope_collector_mqtt:
+          host: 127.0.0.1
+          port: 1883
+          username: periscope
+          password_file: /etc/periscope-collector/mqtt-password
+          broker_service: mosquitto
+          z2m_service: zigbee2mqtt
+          z2m_base_topic: zigbee2mqtt
+        periscope_collector_mqtt_password: "{{ periscope_mqtt_password }}"

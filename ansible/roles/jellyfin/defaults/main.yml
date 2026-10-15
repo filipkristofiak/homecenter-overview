@@ -1,5 +1,5 @@
 ---
-# TrueNAS NFS source — pool: spinners, dataset: media
+# TrueNAS NFS source — pool: spinners-01, dataset: media
 jellyfin_truenas_nfs_server: "*.*.*.*"
 jellyfin_truenas_nfs_path: "/mnt/spinners-01/media"
 jellyfin_nfs_options: "defaults,ro,_netdev,nofail,x-systemd.automount"
@@ -11,3 +11,38 @@ jellyfin_data_dir: /var/lib/jellyfin
 jellyfin_apt_key_url: "https://repo.jellyfin.org/jellyfin_team.gpg.key"
 jellyfin_apt_repo_url: "https://repo.jellyfin.org/debian"
 jellyfin_apt_suite: "bookworm"
+
+# Server state managed through the Jellyfin HTTP API (tasks/configure.yml).
+# Secrets jellyfin_admin_password / jellyfin_kodi_password are vaulted in
+# inventory/host_vars/jellyfin.yml.
+jellyfin_api_url: "http://127.0.0.1:8096"
+jellyfin_api_client: 'MediaBrowser Client="ansible", Device="{{ inventory_hostname }}", DeviceId="ansible-{{ inventory_hostname }}", Version="1.0"'
+jellyfin_admin_user: jellyfin
+
+# Used only by the first-run wizard on a fresh install.
+jellyfin_metadata_language: en
+jellyfin_metadata_country: CZ
+
+# Created when missing (matched by name); the path is added if absent.
+# Jellyfin can't change a library's content type, so a type mismatch fails.
+jellyfin_libraries:
+  - name: Movies
+    collection_type: movies
+    path: "{{ jellyfin_media_mount }}/movies"
+  - name: TV Shows
+    collection_type: tvshows
+    path: "{{ jellyfin_media_mount }}/tv_shows"
+
+# Non-admin accounts for playback clients. The password is set only on
+# creation; the policy below is enforced on every run.
+jellyfin_playback_users:
+  - name: kodi
+    password: "{{ jellyfin_kodi_password }}"
+jellyfin_playback_policy:
+  IsAdministrator: false
+  EnableContentDeletion: false
+  EnableRemoteControlOfOtherUsers: false
+  EnableLiveTvManagement: false
+  EnableCollectionManagement: false
+  EnableAllFolders: true
+  EnableMediaPlayback: true

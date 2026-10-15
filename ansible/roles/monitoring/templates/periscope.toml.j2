@@ -1,0 +1,86 @@
+[[module]]
+id = "pve-guests"
+title = "pve-01 · guests"
+teachme = "/opt/periscope/modules/teachme/pve-guests.md"
+command = ["python3", "/opt/periscope/modules/pve_guests.py", "--link", "homeautomation-01=homeautomation", "--link", "nut-01=nut", "--link", "monitoring-01=monitoring", "--link", "k3s-01=k3s", "--link", "jellyfin=jellyfin", "--link", "pve-01=architecture", "--row", "pve-01 network=network", "--unmodelled", "truenas", "--contract", "nut-01=/opt/periscope/modules/contracts/nut.json", "--contract", "monitoring-01=/opt/periscope/modules/contracts/monitoring.json", "--contract", "k3s-01=/opt/periscope/modules/contracts/k3s.json", "--contract", "jellyfin=/opt/periscope/modules/contracts/jellyfin.json"]
+format = "json"
+interval_secs = 30
+timeout_secs = 20
+env = { PROMETHEUS_URL = "http://prometheus:9090" }
+
+[[module]]
+id = "homeautomation"
+title = "homeautomation-01 · contract"
+teachme = "/opt/periscope/modules/teachme/homeautomation.md"
+command = ["python3", "/opt/periscope/modules/contract.py", "--contract", "/opt/periscope/modules/contracts/homeautomation.json"]
+format = "json"
+interval_secs = 30
+timeout_secs = 20
+env = { PROMETHEUS_URL = "http://prometheus:9090" }
+sidebar = false
+
+[[module]]
+id = "nut"
+title = "nut-01 · contract"
+teachme = "/opt/periscope/modules/teachme/nut.md"
+command = ["python3", "/opt/periscope/modules/contract.py", "--contract", "/opt/periscope/modules/contracts/nut.json"]
+format = "json"
+interval_secs = 30
+timeout_secs = 20
+env = { PROMETHEUS_URL = "http://prometheus:9090" }
+sidebar = false
+
+[[module]]
+id = "monitoring"
+title = "monitoring-01 · contract"
+teachme = "/opt/periscope/modules/teachme/monitoring.md"
+command = ["python3", "/opt/periscope/modules/contract.py", "--contract", "/opt/periscope/modules/contracts/monitoring.json"]
+format = "json"
+interval_secs = 30
+timeout_secs = 20
+env = { PROMETHEUS_URL = "http://prometheus:9090" }
+sidebar = false
+
+[[module]]
+id = "k3s"
+title = "k3s-01 · contract"
+teachme = "/opt/periscope/modules/teachme/k3s.md"
+command = ["python3", "/opt/periscope/modules/contract.py", "--contract", "/opt/periscope/modules/contracts/k3s.json"]
+format = "json"
+interval_secs = 30
+timeout_secs = 20
+env = { PROMETHEUS_URL = "http://prometheus:9090" }
+sidebar = false
+
+[[module]]
+id = "jellyfin"
+title = "jellyfin · contract"
+teachme = "/opt/periscope/modules/teachme/jellyfin.md"
+command = ["python3", "/opt/periscope/modules/contract.py", "--contract", "/opt/periscope/modules/contracts/jellyfin.json"]
+format = "json"
+interval_secs = 30
+timeout_secs = 20
+env = { PROMETHEUS_URL = "http://prometheus:9090" }
+sidebar = false
+
+[[module]]
+id = "network"
+title = "homelab · network contract"
+teachme = "/opt/periscope/modules/teachme/network.md"
+command = ["python3", "/opt/periscope/modules/contract.py", "--contract", "/opt/periscope/modules/contracts/network.json"]
+format = "json"
+interval_secs = 30
+timeout_secs = 20
+env = { PROMETHEUS_URL = "http://prometheus:9090" }
+sidebar = false
+
+[[module]]
+id = "architecture"
+title = "homelab · architecture contract"
+teachme = "/opt/periscope/modules/teachme/architecture.md"
+command = ["python3", "/opt/periscope/modules/contract.py", "--contract", "/opt/periscope/modules/contracts/architecture.json"]
+format = "json"
+interval_secs = 30
+timeout_secs = 20
+env = { PROMETHEUS_URL = "http://prometheus:9090" }
+sidebar = false
