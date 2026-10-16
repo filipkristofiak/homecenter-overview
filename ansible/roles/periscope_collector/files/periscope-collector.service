@@ -5,3 +5,8 @@ Description=Collect service health metrics for node-exporter
 Type=oneshot
 ExecStart=/usr/local/bin/periscope-collector --config /etc/periscope-collector/config.json
 TimeoutStartSec=25
+# Runs every 30s. Keep systemd's per-run "Starting"/"Finished"/"Deactivated"
+# info lines out of the journal (~8,400 lines/day of journald writes).
+# Script output (probe failures on stderr) is raised to warning so it still logs.
+SyslogLevel=warning
+LogLevelMax=notice

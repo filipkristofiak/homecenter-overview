@@ -28,3 +28,31 @@
     name: prometheus-node-exporter
     enabled: true
     state: started
+
+- name: Create drop-in directories for Debian collector timer services
+  file:
+    path: "/etc/systemd/system/{{ item }}.service.d"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop: &node_exporter_debian_collectors
+    - prometheus-node-exporter-apt
+    - prometheus-node-exporter-smartmon
+    - prometheus-node-exporter-nvme
+
+- name: Silence routine Debian collector timer runs in the journal
+  copy:
+    dest: "/etc/systemd/system/{{ item }}.service.d/quiet.conf"
+    content: |
+      # Managed by Ansible (node_exporter role).
+      # These collectors run every 15 min; keep systemd's per-run info lines
+      # out of the journal. Collector output is raised to warning so failures still log.
+      [Service]
+      SyslogLevel=warning
+      LogLevelMax=notice
+    owner: root
+    group: root
+    mode: "0644"
+  loop: *node_exporter_debian_collectors
+  notify: Reload systemd for collector drop-ins

@@ -1,32 +1,13 @@
-# Node Exporter — pve_lxc containers
+# Node Exporter — pve_lxc guests and pve-01
 
-## What was done
-
-Added a `node_exporter` Ansible role that installs `prometheus-node-exporter` on all
-LXC containers in the `pve_lxc` group. Prometheus on `monitoring-01` is updated to
-scrape all four containers on port 9100. Targets are generated dynamically from the
-Ansible inventory so adding a new container requires no changes to the prometheus config.
-
----
-
-## File layout
-
-```
-ansible/
-  playbooks/node-exporter.yml      entry-point playbook (targets pve_lxc)
-  roles/node_exporter/
-    defaults/main.yml              node_exporter_port: 9100
-    tasks/main.yml                 install prometheus-node-exporter, enable service
-  roles/monitoring/
-    defaults/main.yml              node_exporter_port: 9100 (used in template)
-    templates/prometheus.yml.j2    node scrape job — targets built from groups['pve_lxc']
-```
+Node exporter supplies Linux metrics to Prometheus on TCP 9100 from every `pve_lxc` guest and pve-01.
+Scrape targets are generated from `groups['pve_lxc'] + groups['proxmox_hosts']`.
 
 ---
 
 ## Deploy order
 
-### 1. Install node exporter on all containers
+### 1. Install node exporter on all `pve_lxc` guests
 
 ```bash
 cd ansible
@@ -34,7 +15,7 @@ ansible-playbook playbooks/node-exporter.yml
 ```
 
 Ansible will install `prometheus-node-exporter` from the Debian apt repository and
-enable it as a systemd service on each container. The exporter listens on `0.0.0.0:9100`.
+enable it as a systemd service on each guest. The exporter listens on `0.0.0.0:9100`.
 
 ### 2. Redeploy Prometheus config
 
@@ -58,7 +39,7 @@ curl -X POST http://*.*.*.*:9090/-/reload
 Check that Prometheus can reach each target:
 
 - Open `http://*.*.*.*:9090/targets` in a browser
-- All four targets should show **State: UP**
+- Every node target shows **State: UP**
 
 Or query directly:
 
@@ -71,16 +52,6 @@ curl -s 'http://*.*.*.*:9090/api/v1/targets' \
   | python3 -m json.tool \
   | grep -E '"job"|"health"'
 ```
-
-Expected targets:
-
-| Host         | Port | Label         |
-|--------------|------|---------------|
-| `*.*.*.*`    | 9100 | nut-01        |
-| `*.*.*.*`    | 9100 | monitoring-01 |
-| `*.*.*.*`    | 9100 | jellyfin      |
-| `*.*.*.*`    | 9100 | homeautomation-01 |
-| `*.*.*.*`    | 9100 | pve-01 (added later via `pve-host.yml` — see [pve-01-nvme-health.md](pve-01-nvme-health.md)) |
 
 ---
 
@@ -104,7 +75,7 @@ Metrics collected by default:
 
 You can query raw data immediately at `http://*.*.*.*:9090/graph`. Example: paste
 `100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)` to see
-CPU usage across all containers.
+CPU usage across all scraped hosts.
 
 ### Not yet configured — needs follow-up
 
@@ -114,19 +85,7 @@ dashboard covers everything node exporter exposes and takes ~1 minute to import:
 1. Open Grafana → Dashboards → Import
 2. Enter ID `1860` (Node Exporter Full) → Load → select the Prometheus datasource
 
-**Alerting rules** — a `rule_files` block now exists and loads
-`roles/monitoring/templates/alerts.yml.j2` (currently NVMe health rules for pve-01,
-see [pve-01-nvme-health.md](pve-01-nvme-health.md)). Guest-level rules are still
-missing; useful starting points to add to that file:
-
-| Alert | Condition | Why it matters |
-|---|---|---|
-| High disk usage | filesystem > 85% full | LXC disks are fixed-size; no autogrow |
-| High memory | memory used > 90% | containers have hard RAM limits set in Terraform |
-| Node down | target unreachable for > 2m | catches container crashes or network issues |
-
-**Alertmanager** — even with rules defined, Prometheus needs Alertmanager running to
-route alerts somewhere (email, Slack, etc.). Not yet deployed.
+Only pve-01 NVMe rules exist today ([pve-01-host.md#alerts](pve-01-host.md#alerts)); proposed guest rules: [backlog](../backlog/ops-follow-ups.md).
 
 ---
 
@@ -136,8 +95,8 @@ route alerts somewhere (email, Slack, etc.). Not yet deployed.
 |---|---|---|
 | Package | `prometheus-node-exporter` (apt) | Ships in Debian repos, no manual binary download needed |
 | Port | `9100` | Default for node exporter; no config change required |
-| Firewall | No new rules needed | All containers are on VLAN 27 (trusted zone) — inter-container traffic is unrestricted |
-| Target generation | Jinja2 loop over `groups['pve_lxc']` | Stays in sync with inventory; adding a new container to `hosts.yml` is enough |
+| Firewall | None on VLAN 27; VLAN 39 rule for homeautomation-01 | VLAN 27 is a trusted zone. homeautomation-01 is on isolated VLAN 39, where TCP 9100 is one of its explicit UniFi allow rules |
+| Target generation | Jinja2 loop over `groups['pve_lxc'] + groups['proxmox_hosts']` | Stays in sync with inventory; adding a new host to `hosts.yml` is enough |
 
 ---
 

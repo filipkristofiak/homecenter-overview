@@ -1,5 +1,7 @@
 # Home Automation VM Unreachable — VLAN 39 Uplink Missing Tag (2026-07-20)
 
+> State as of 2026-07-20, not maintained. Current procedures: [UniFi network checklist](../runbooks/unifi-network-pve01.md).
+
 ## Symptom
 
 Prometheus target health showed:
@@ -12,7 +14,7 @@ Error scraping target: Get "http://*.*.*.*:9100/metrics": dial tcp *.*.*.*:9100:
 - No ping from pve-01
 - No curl to any port
 
-## Investigation
+### Investigation
 
 Checked and ruled out on pve-01:
 - `qm config 203` — VM network interface config was correct (VLAN 39 tag present)
@@ -34,12 +36,12 @@ ping -c3 *.*.*.1   # gateway — this failed too
 Gateway itself was unreachable from pve-01 on VLAN 39, which pointed at the switch/router uplink
 rather than anything specific to the VM.
 
-## Root Cause
+## Cause
 
 **UDR7 Port 2 (the active switch uplink) had a per-VLAN exclusion list, and VLAN 39 was on it.**
 
-This is a known gotcha in this network (see `docs/runbooks/unifi-network-pve01.md`):
-UDR7 Port 2 excludes specific VLANs from the trunk by default. When VLAN 39 (HomeAuto) was created,
+This is a known gotcha in this network (see [UniFi network checklist](../runbooks/unifi-network-pve01.md)):
+UDR7 Port 2 excludes specific VLANs from the trunk by default. When VLAN 39 was created,
 it was never removed from Port 2's exclusion list. Layer-2 frames tagged VLAN 39 were silently
 dropped between the UDR7 router and the USW2.5 switch — before ever reaching pve-01 or the VM.
 Nothing on the Proxmox side could have shown this; the outage was entirely on the router→switch
@@ -54,7 +56,7 @@ In UniFi, on UDR7 Port 2's port profile: removed VLAN 39 from the excluded-netwo
 allowed VLAN 39 across the uplink). The VM was immediately reachable and node-exporter scraped
 successfully right after the change — no VM or Proxmox-side changes were needed.
 
-## Cleanup
+### Cleanup
 
 Removed the diagnostic VLAN 39 interface from pve-01 (no longer needed once the uplink was fixed):
 ```bash
@@ -62,7 +64,9 @@ ip link del vmbr0.39
 bridge vlan del dev vmbr0 vid 39 self
 ```
 
-## Lessons learned
+## Lessons
+
+### Lessons learned
 
 - "no route to host" (not "connection refused") on a scrape target usually means an active
   network-layer block (ICMP reject / silently dropped frames) rather than a dead service —
@@ -79,7 +83,7 @@ bridge vlan del dev vmbr0 vid 39 self
   the real fix is confirmed — they're not part of the permanent config and would be confusing
   clutter left behind.
 
-## Key IPs
+### Key IPs
 
 - pve-01 (Proxmox): `*.*.*.*`
 - homeautomation-01 (VM 203, VLAN 39): `*.*.*.*`

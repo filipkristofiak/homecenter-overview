@@ -7,3 +7,7 @@
 - name: Update apt cache
   apt:
     update_cache: true
+
+- name: Reload systemd for first-boot drop-ins
+  systemd:
+    daemon_reload: true

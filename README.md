@@ -23,10 +23,11 @@ homecenter/
 │
 ├── docs/
 │   ├── architecture/         # naming conventions, overview
+│   ├── backlog/              # future work, planned devices
 │   ├── infrastructure/       # hardware inventory, node specs
+│   ├── journal/              # incidents, frozen
 │   ├── network/              # network diagram
-│   ├── runbooks/             # per-service recovery guides
-│   └── future_planning/      # hardware repurposing, lab ideas
+│   └── runbooks/             # present-tense manuals
 │
 ├── ansible/
 │   ├── inventory/
@@ -140,13 +141,12 @@ exporter authenticates with a revocable read-only token rather than a user passw
 
 ## Operations
 
-Every service has a runbook: what was deployed, the key decisions and *why* (as a
-decision table), pre-flight checklists, verification commands, and known follow-ups.
-When something broke — containers apparently losing VLAN assignments after reboot, a
-25-second SSH login delay traced through PAM into cgroup namespaces — the outcome was
-a root-cause writeup and, where useful, an automated fix kept as code (e.g. a systemd
-oneshot that re-derives VLAN assignments from container configs; a later re-check
-showed the host no longer needs it, so it stays undeployed until the fault recurs).
+Every service has a present-tense manual: deployment prerequisites, verification
+commands, recovery procedures, and the decisions that matter in operation.
+Incidents — a VLAN trunk mismatch, a SATA passthrough fault, a 25-second SSH login
+delay traced through PAM into cgroup namespaces — live separately as frozen journal
+entries. The undeployed VLAN fixup service was removed after a re-check showed
+correct assignments without it; the manual keeps conditional checks instead.
 
 The repo also tracks its own debt honestly: what's manual and why, what's not yet
 automated, and the ordered plan to close each gap. I find that discipline — knowing
@@ -176,7 +176,8 @@ configuration via its REST API, host network config) into code.
 - [Hardware inventory](docs/infrastructure/hardware_inventory.md) - redacted
 - [Network diagram](docs/network/diagram.md) - redacted
 - [Home automation design](docs/home_automation/home-automation.md)
-- Runbooks: [Home Automation](docs/runbooks/homeautomation-vm.md) · [Jellyfin](docs/runbooks/jellyfin-lxc.md) · [Monitoring](docs/runbooks/monitoring-lxc.md) · [Periscope](docs/runbooks/periscope.md) · [Service-health collector](docs/runbooks/service-health-collector.md) · [NUT](docs/runbooks/nut-server-lxc.md) · [TrueNAS](docs/runbooks/truenas-init-notes.md) · [TrueNAS SATA passthrough fault](docs/runbooks/truenas-sata-passthrough-fault.md) · [NVMe health](docs/runbooks/pve-01-nvme-health.md) · [pve-01 backups](docs/runbooks/pve-01-backups.md) · [k3s](docs/runbooks/k3s-vm.md) · [Image version pinning](docs/runbooks/image-version-pinning.md)
+- Runbooks: [Home Automation](docs/runbooks/homeautomation-vm.md) · [Jellyfin](docs/runbooks/jellyfin-lxc.md) · [Monitoring](docs/runbooks/monitoring-lxc.md) · [Periscope](docs/runbooks/periscope.md) · [Service-health collector](docs/runbooks/service-health-collector.md) · [NUT](docs/runbooks/nut-server-lxc.md) · [TrueNAS](docs/runbooks/truenas-vm.md) · [pve-01 host](docs/runbooks/pve-01-host.md) · [pve-01 network](docs/runbooks/pve-01-network.md) · [pve-01 rebuild](docs/runbooks/pve-01-rebuild.md) · [pve-01 backups](docs/runbooks/pve-01-backups.md) · [k3s](docs/runbooks/k3s-vm.md)
+- Journal: [TrueNAS SATA passthrough fault](docs/journal/2026-08-01-truenas-sata-passthrough-fault.md) · [HA VLAN 39 outage](docs/journal/2026-07-20-homeautomation-vm-vlan6-outage.md) · [Slow LXC SSH](docs/journal/2026-04-13-lxc-ssh-slow.md) · [pve-01 VLAN trunk fix](docs/journal/2026-04-08-pve-01-network-fix.md) · [TrueNAS VLAN tag after upgrade](docs/journal/2026-04-17-pve-01-vlan-fix-truenas.md)
 
 ---
 
@@ -185,7 +186,7 @@ configuration via its REST API, host network config) into code.
 Key events from idea and blueprints to today's state.
 
 <p align="center">
-  <a href="docs/architecture/homecenter-milestones.png">
-    <img src="docs/architecture/homecenter-milestones.png" alt="homecenter build timeline: from spec sheet to production" width="850">
+  <a href="docs/journal/homecenter-milestones.png">
+    <img src="docs/journal/homecenter-milestones.png" alt="homecenter build timeline: from spec sheet to production" width="850">
   </a>
 </p>

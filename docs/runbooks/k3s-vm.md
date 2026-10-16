@@ -1,43 +1,9 @@
 # k3s Node VM — pve-01
 
-## What was done
-
-Provisioned `k3s-01` as a Debian 12 VM (ID 204) on pve-01 via Terraform and
-installed a single-node k3s cluster via Ansible. The cluster serves two workload
-classes: stable home services (candidates migrate over time) and data-platform
-learning projects (Postgres, Redpanda, Dagster, pandas jobs).
+k3s-01 runs a single-node k3s cluster with containerd and a separate disk for local-path persistent volumes.
+`k3s.yml` provisions the node (deliberately without `common`/Docker) and writes `~/.kube/k3s-01.yaml` on the control machine.
 
 Design and sizing rationale: [`docs/architecture/k3s-node-plan.md`](../architecture/k3s-node-plan.md).
-
-Built and verified 2026-07-18: node Ready (k3s v1.36.2), PVC smoke test passed,
-node-exporter scraped by Prometheus.
-
----
-
-## File layout
-
-```
-terraform/pve-01/
-  variables.tf              k3s_vm_ip (*.*.*.*/24), k3s_vm_id (204)
-  main.tf                   proxmox_virtual_environment_vm "vm_k3s" (VLAN 27)
-                            scsi0 40 GB (OS) + scsi1 150 GB (PV data disk)
-
-ansible/
-  inventory/hosts.yml       k3s-01 in pve_lxc group — *.*.*.*
-                            (group membership auto-adds the Prometheus node target)
-  playbooks/k3s.yml         entry-point playbook — k3s + node_exporter roles
-  roles/k3s/
-    defaults/main.yml       k3s_channel, k3s_data_disk, k3s_data_mount,
-                            k3s_kubeconfig_local_path
-    tasks/main.yml          QoL (PS1, UseDNS), prerequisites (qemu-guest-agent,
-                            nfs-common, open-iscsi), data disk mkfs+mount,
-                            k3s config + install, kubeconfig fetch
-    handlers/main.yml       Restart sshd, Restart k3s
-```
-
-The `common` role is deliberately **not** applied: it installs Docker, and k3s
-runs its own containerd — two container runtimes on one host is confusion
-waiting to happen. The role carries common's QoL tasks itself.
 
 ---
 
@@ -45,8 +11,8 @@ waiting to happen. The role carries common's QoL tasks itself.
 
 ### 1. Provision the VM (Terraform)
 
-Requires the Debian 12 cloud-init template (ID 9000) on pve-01 — creation steps
-are in `docs/runbooks/homeautomation-vm.md` and the `main.tf` comment.
+Requires the Debian 12 cloud-init template on pve-01 — see
+[rebuild template prerequisites](pve-01-rebuild.md#3-templates-on-pve-01).
 
 ```bash
 cd terraform/pve-01
@@ -160,7 +126,6 @@ Things worth noticing while it runs:
 |---|---|---|
 | VM type | Full VM (not LXC) | k3s in LXC fights cgroups/overlayfs even privileged |
 | VLAN | 27 — internal | Cluster + Ansible + kubectl need unrestricted LAN access |
-| VM ID / IP | `204` / `*.*.*.*` | Sequential after homeautomation-01 |
 | CPU | 8 vCPU, `host` type, no pinning | AVX for numpy/pandas; no live migration on single host; E-cores belong to homeautomation-01 |
 | RAM | 16 GB dedicated, no ballooning | k8s memory accounting needs stable totals; ~** GB host headroom remains |
 | Disks | 40 GB OS + 150 GB data (thin) | PVs isolated from OS disk; grow-only, so thin + generous |
@@ -168,7 +133,6 @@ Things worth noticing while it runs:
 | Ingress / LB | traefik + klipper (k3s defaults) | No reason to deviate on a single node |
 | k3s version | `stable` channel | Single-node homelab; pin via `k3s_channel` if reproducibility ever matters |
 | No Docker | k3s containerd only | Avoids two runtimes; `common` role skipped |
-| Future storage tier | TrueNAS + democratic-csi | Spare 512 GB SATA SSD; replaceable data only (TrueNAS is a VM on the same host) |
 
 ---
 
@@ -211,14 +175,8 @@ partition/filesystem. kubelet starts evicting pods at 85% imagefs usage.
 
 ## Troubleshooting
 
-- **Node NotReady / no SSH / no agent after VM restart** — was: bare
-  `/dev/sdb` in fstab, no `nofail`, so a boot-time device-enumeration race
-  (`Can't open blockdev`) drops the VM into emergency mode — root is locked
-  on cloud-init images, so there's no console recovery, only `qm stop` +
-  `qm start` and hoping the race doesn't repeat (2026-08-22 incident). Fixed:
-  `k3s` role's data-disk mount now uses `defaults,noatime,nofail`, so a
-  failed mount degrades the boot (no PVs) instead of blocking it — SSH and
-  `k3s` still come up, and `mount -a` recovers the data disk once logged in.
+- **Node boots to emergency mode** — check the storage mount:
+  `findmnt /var/lib/rancher/k3s/storage`, fix `/etc/fstab`, `mount -a`.
 - **PVC stuck Pending** — no consumer pod yet (`WaitForFirstConsumer` is
   normal), or the local-path provisioner pod is down: `kubectl -n kube-system
   get pods | grep local-path`.
@@ -231,7 +189,6 @@ partition/filesystem. kubelet starts evicting pods at 85% imagefs usage.
 
 ## Pre-flight checklist (fresh deploy)
 
-- [ ] Debian 12 cloud-init template (ID 9000) exists on pve-01: `qm list`
-- [ ] VM ID `204` is free and IP `*.*.*.*` is not in use: `ping -c1 *.*.*.*`
+- [ ] [Debian 12 cloud-init template](pve-01-rebuild.md#3-templates-on-pve-01) exists on pve-01: `qm list`
 - [ ] SSH key set in `terraform.tfvars`
 - [ ] ~190 GB nominal free on `local-lvm`: `pvesm status`

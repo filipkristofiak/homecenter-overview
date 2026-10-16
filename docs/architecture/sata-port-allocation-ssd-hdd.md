@@ -4,9 +4,9 @@ Status: **proposed, not yet executed** (2026-08-22). Decision record for adding 
 drives — a 1TB SSD and the WD Red 4TB "Storage Destroyer" — given no free PCIe
 slots and no bare-metal rework (no new cards, no BIOS/slot changes).
 
-Related: [`docs/runbooks/truenas-sata-passthrough-fault.md`](../runbooks/truenas-sata-passthrough-fault.md)
-(controller-passthrough incident + fix), [`docs/architecture/k3s-node-plan.md`](../architecture/k3s-node-plan.md)
-(original Tier 2 PV plan), [`pve-01-specs.md`](pve-01-specs.md) (bare-metal inventory).
+Related: [TrueNAS SATA passthrough fault](../journal/2026-08-01-truenas-sata-passthrough-fault.md)
+(controller-passthrough incident + fix), [k3s node plan](k3s-node-plan.md)
+(original Tier 2 PV plan), [bare-metal inventory](../infrastructure/pve-01-specs.md).
 
 ## Current topology (post 2026-08-03 fix)
 
@@ -43,10 +43,10 @@ already-passed-through card, TrueNAS just sees a new disk, no new passthrough
 config. Rejected for two compounding reasons:
 
 1. **Blast radius.** `05:00.0` also carries `spinners-01` member ***.
-   The fault runbook's entire rationale for splitting the raidz1 across two
-   controllers (line 69) was to stop one controller fault from threatening
-   multiple pool members at once. Putting the PV pool's only disk behind the
-   *same* controller as a raidz1 member reintroduces a correlated-failure
+   A [controller fault](../journal/2026-08-01-truenas-sata-passthrough-fault.md#fix)
+   on `03:00.0` still threatens two raidz1 members; splitting 2+1 is not full
+   fault isolation. Putting the PV pool's only disk behind the
+   *same* controller as a raidz1 member adds a correlated-failure
    path: a `05:00.0` fault now takes out a raidz1 member and all k3s
    persistent volumes in the same incident, right as you're also resilvering.
    `spinners-01` would survive (raidz1 tolerates 1 of 3), but you'd be
@@ -77,8 +77,9 @@ zero TrueNAS/iSCSI dependency in the data path.
 
 - **SMART visibility on the SSD degrades in the TrueNAS guest** — individual
   disk (virtio-scsi) passthrough doesn't reliably forward SMART/SAT commands
-  through to the guest (same caveat `truenas-init-notes.md` §1/§9 already
-  documents for this pattern). Mitigation: monitor SSD SMART/wear from the
+  through to the guest (see [TrueNAS gotchas](../runbooks/truenas-vm.md#gotchas)
+  for controller-passthrough constraints).
+  Mitigation: monitor SSD SMART/wear from the
   **Proxmox host** (`smartctl -a /dev/disk/by-id/ata-<ssd-serial>`), which
   still has full native access to the controller — add to the existing
   node_exporter/SMART monitoring on `pve-01` rather than relying on TrueNAS's

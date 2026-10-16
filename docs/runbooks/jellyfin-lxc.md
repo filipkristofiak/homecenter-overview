@@ -1,15 +1,7 @@
 # Jellyfin Media Server LXC — pve-01
 
-## What was done
-
-Provisioned Jellyfin Media Server as a privileged LXC container on pve-01
-(CT 205, `jellyfin`, `*.*.*.*`). Media is served from TrueNAS via NFS
-(pool: spinners-01, dataset: media, mounted read-only at `/mnt/media` inside
-the container).
-
-Deployed and verified 2026-08-22: `jellyfin` service active, NFS mount
-confirmed `ro`, library visible at `/mnt/media/movies`, web UI reachable on
-`:8096`.
+Jellyfin runs as a privileged LXC and reads its TrueNAS media share through a read-only NFS mount.
+Ansible installs the server and manages first-run setup, libraries and the restricted `kodi` playback user through its HTTP API.
 
 Why Jellyfin gets its own LXC instead of a VM or a spot on `k3s-01`: see
 [k3s-node-plan.md non-goals](../architecture/k3s-node-plan.md#non-goals) —
@@ -18,34 +10,9 @@ passthrough or SR-IOV into a VM/k3s node for no gain on a single-host lab.
 
 ---
 
-## File layout
-
-```
-terraform/pve-01/
-  variables.tf              added jellyfin_lxc_id, jellyfin_lxc_ip, jellyfin_truenas_nfs_server
-  main.tf                   LXC container resource (jellyfin, CT 205, VLAN 27)
-  terraform.tfvars.example  added jellyfin vars
-
-ansible/
-  inventory/hosts.yml       added jellyfin (pve_lxc group, *.*.*.*)
-  inventory/host_vars/jellyfin.yml  vaulted jellyfin_admin_password, jellyfin_kodi_password
-  playbooks/jellyfin.yml    entry-point playbook
-  roles/jellyfin/
-    defaults/main.yml       NFS source, mount path, mount options, Jellyfin repo URL,
-                            API settings, libraries, playback users and their policy
-    tasks/main.yml          install prerequisites, add Jellyfin repo, install, NFS mount, start service
-    tasks/configure.yml     server state via the Jellyfin API: first-run wizard,
-                            libraries, non-admin playback users
-    handlers/main.yml       restart jellyfin, refresh apt cache
-```
-
----
-
 ## Pre-flight checklist
 
-- [ ] Debian 12 template on pve-01: `pveam update && pveam download local debian-12-standard_12.12-1_amd64.tar.zst`
-- [ ] CT ID `205` is free: `pct list`
-- [ ] IP `*.*.*.*` is not in use: `ping -c1 *.*.*.*`
+- [ ] Debian 12 template available on pve-01: [template prerequisites](pve-01-rebuild.md#3-templates-on-pve-01)
 - [ ] TrueNAS NFS share exported: pool `spinners-01`, dataset `media`, path `/mnt/spinners-01/media`
 - [ ] TrueNAS NFS export allows VLAN 27 subnet (`*.*.*.*/24`)
 - [ ] SSH key added to `terraform.tfvars`
@@ -63,19 +30,7 @@ terraform apply
 
 ### 2. Enable LXC nesting (manual, root@pam only)
 
-The Terraform API token can't set the `features` block on privileged
-containers — `main.tf` deliberately ignores drift on it
-(`lifecycle { ignore_changes = [features] }`). Run this once, on pve-01, as
-`root@pam` (not via the API token):
-
-```bash
-pct set 205 --features nesting=1
-pct shutdown 205 && pct start 205
-```
-
-Without this, `systemd-logind` can't start inside the container and every
-SSH login — including each Ansible task in the next step — stalls ~25s. Root
-cause: [`lxc-ssh-slow.md`](lxc-ssh-slow.md).
+Enable nesting before Ansible: see the `lxc_jellyfin` comment in `terraform/pve-01/main.tf` (without it SSH logins take ~25 s, [journal](../journal/2026-04-13-lxc-ssh-slow.md)).
 
 ### 3. Configure Jellyfin (Ansible)
 
@@ -111,15 +66,7 @@ Every step reads first and writes only on drift; a second run reports
 
 ## TrueNAS NFS export settings
 
-Already exists, verified live via `midclt call sharing.nfs.query` on TrueNAS
-(id 1) — no new export needed, no changes required for Jellyfin:
-
-| Field | Value |
-|---|---|
-| Path | `/mnt/spinners-01/media` |
-| Networks | `*.*.*.*/24` |
-| Maproot User | `root` |
-| Maproot Group | `wheel` (TrueNAS SCALE default for `root`, not `root` group) |
+Export configuration: [TrueNAS NFS exports](truenas-vm.md#nfs-exports).
 
 > **UID mapping note**: the Debian package creates the `jellyfin` system user
 > at install time with a dynamically assigned UID — check `id jellyfin`
@@ -140,13 +87,12 @@ media folders — at that point, mount read-write and revisit maproot.
 | Decision | Value | Reason |
 |---|---|---|
 | Deployment target | Privileged LXC (not VM, not k3s) | iGPU passthrough — bind-mounting `/dev/dri` into an LXC is two lines; into a VM/k3s node it's full passthrough or SR-IOV for no gain on a single-host lab |
-| Hostname | `jellyfin` (no `-XX` suffix) | Matches `naming.md` §3 `<service>` pattern — single well-known service with its own identity, same as `truenas` |
-| CT ID | `205` | Next free after k3s-01 (204) |
-| IP | `*.*.*.*/24` | VLAN 27, static; next free after k3s-01 (.14) |
-| CPU | 4 cores | Raised from 2 on 2026-10-13: with a library of ~3,900 media files, each library scan and its follow-on metadata/artwork pass held 2 cores at 100% for 45–90 min and starved the API. Applied live by Terraform, no container restart |
+| CPU | 4 cores | Library scans and their follow-on metadata/artwork passes can saturate 2 cores and starve the API |
 | RAM | 2048 MB | Comfortable for 1-2 simultaneous streams |
 | Disk | 16 GB | OS + Jellyfin metadata, artwork, transcode temp (media is on TrueNAS) |
 | NFS mount options | `defaults,ro,_netdev,nofail,x-systemd.automount` | Read-only: Jellyfin never writes into the library (state lives in `/var/lib/jellyfin`), so the client refuses writes at the kernel level regardless of what the NFS server would permit — makes `Maproot User: root` harmless. `ro` must come *after* `defaults` — `defaults` expands to `rw,suid,dev,exec,auto,nouser,async` and options are applied left-to-right, so a leading `ro` gets silently overridden by the trailing `rw` inside `defaults`. Verify post-deploy: `findmnt -no OPTIONS /mnt/media \| grep -ow ro` |
+
+Hostname naming rationale: [service naming](../architecture/naming.md).
 
 ---
 
@@ -172,12 +118,3 @@ lxc.mount.entry: /dev/dri dev/dri none bind,optional,create=dir
 
 5. In Jellyfin Dashboard → Playback → Transcoding, set Hardware acceleration
    to `Intel QuickSync (QSV)` and select `/dev/dri/renderD128`.
-
----
-
-## Migration history
-
-Replaces Plex (`plex-01`, CT 202). Plex was decommissioned 2026-08-22 after
-Jellyfin was verified working end-to-end: Terraform destroyed the container,
-`ansible/roles/plex` and `playbooks/plex.yml` were removed, and every
-inventory/doc reference to it was swept from the repo.

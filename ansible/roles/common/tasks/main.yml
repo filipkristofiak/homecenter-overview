@@ -56,3 +56,65 @@
     name: docker
     enabled: true
     state: started
+
+- name: Check for Proxmox first-boot snakeoil unit
+  stat:
+    path: /etc/systemd/system/proxmox-regenerate-snakeoil.service
+  register: common_snakeoil_unit
+  tags: journal-noise
+
+- name: Create snakeoil drop-in directory
+  file:
+    path: /etc/systemd/system/proxmox-regenerate-snakeoil.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: common_snakeoil_unit.stat.exists
+  tags: journal-noise
+
+- name: Silence the snakeoil first-boot condition check in the journal
+  copy:
+    dest: /etc/systemd/system/proxmox-regenerate-snakeoil.service.d/quiet.conf
+    content: |
+      # Managed by Ansible (common role). One-time first-boot unit from the
+      # Proxmox LXC template; its skipped-condition line is logged at every unit start.
+      [Service]
+      LogLevelMax=notice
+    owner: root
+    group: root
+    mode: "0644"
+  when: common_snakeoil_unit.stat.exists
+  notify: Reload systemd for first-boot drop-ins
+  tags: journal-noise
+
+# In these LXCs every service start pulls first-boot-complete.target in via
+# sysinit.target. The target stays inactive after boot (ConditionFirstBoot=yes),
+# so each start re-checks it and logs "skipped". With a timer starting a service
+# every minute (nut-metrics), that one line kept journald writing its files.
+# Targets don't accept LogLevelMax. Resetting the condition lets this passive
+# sync-point target become active once, after which unit starts log nothing.
+- name: Create first-boot-complete target drop-in directory
+  file:
+    path: /etc/systemd/system/first-boot-complete.target.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: common_snakeoil_unit.stat.exists
+  tags: journal-noise
+
+- name: Let first-boot-complete target stay active instead of re-logging its skip
+  copy:
+    dest: /etc/systemd/system/first-boot-complete.target.d/quiet.conf
+    content: |
+      # Managed by Ansible (common role). Reset ConditionFirstBoot so the target
+      # stays active and is not re-checked (and logged) at every unit start.
+      [Unit]
+      ConditionFirstBoot=
+    owner: root
+    group: root
+    mode: "0644"
+  when: common_snakeoil_unit.stat.exists
+  notify: Reload systemd for first-boot drop-ins
+  tags: journal-noise

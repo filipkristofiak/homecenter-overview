@@ -1,6 +1,8 @@
-# TrueNAS spinners-01 Pool Suspension — SATA Controller Passthrough Fault (August 2026)
+# TrueNAS spinners-01 Pool Suspension — SATA Controller Passthrough Fault (2026-08-01)
 
-## What happened
+> State as of 2026-08-03, not maintained. Current procedures: [TrueNAS VM](../runbooks/truenas-vm.md), [SATA port allocation](../architecture/sata-port-allocation-ssd-hdd.md).
+
+## Symptom
 
 During a smoke test of a large media library migration to TrueNAS, a single ~18GB media file was rsynced from the old media host to `spinners-01/media` on TrueNAS. About 89% through the sustained write, the pool suspended:
 
@@ -16,7 +18,9 @@ A `zpool clear` attempt to resume I/O immediately re-suspended the pool (this ti
 
 Recovery required a hard stop/start of the VM (`qm stop 100` / `qm start 100` on pve-01), followed by an automatic resilver and a manual scrub. One casualty: the in-flight rsync temp file for the test media file (`.<name>.<ext>.iKWrVU`) was left corrupted and had to be deleted — no other data was lost. `spinners-01` came back fully clean (`0 0 0` on all vdev members, `errors: No known data errors`).
 
-## Root cause
+## Cause
+
+### Root cause
 
 **Not a disk problem.** All three disks tested SMART-clean throughout (0 reallocated/pending/uncorrectable sectors). The actual cause: TrueNAS (`VM 100` on `pve-01`) has the *entire onboard SATA/AHCI controller* passed through via VFIO (`hostpci0: 0000:00:17.0` in `qm config 100`). Correlating `pve-01`'s host-level kernel log against TrueNAS's guest-level `dmesg` (see timezone note below) showed IOMMU/DMAR faults on the host **at the exact same timestamps** as every AHCI error burst in the guest:
 
@@ -26,7 +30,7 @@ DMAR: [DMA Read NO_PASID] Request device [00:17.0] fault addr 0x56174000 [fault 
 
 This is a known failure mode for certain Intel PCH AHCI controllers under VFIO passthrough: the controller's DMA engine speculatively reads slightly past its descriptor buffer as a hardware optimization. On bare metal this is harmless (reads adjacent real RAM, discarded). Under strict IOMMU isolation, that stray read hits unmapped guest memory and gets blocked — rare at idle, but frequent under sustained heavy write I/O, and it eventually confuses the AHCI controller's internal state (surfacing as aborted commands / host bus errors in the guest).
 
-Confirmed further by the restart: QEMU logged `kvm: vfio: Cannot reset device 0000:00:17.0, no available reset mechanism` — this controller has no FLR (Function-Level Reset) support, so a clean reset between VM stop/start isn't possible either. This matches a caution already present in [truenas-init-notes.md](truenas-init-notes.md) ("some controllers... lack proper Function-Level Reset (FLR), causing instability during passthrough"), just not one we'd hit until pushing sustained write load through it.
+Confirmed further by the restart: QEMU logged `kvm: vfio: Cannot reset device 0000:00:17.0, no available reset mechanism` — this controller has no FLR (Function-Level Reset) support, so a clean reset between VM stop/start isn't possible either. This matches a caution already present then in `truenas-init-notes.md` ("some controllers... lack proper Function-Level Reset (FLR), causing instability during passthrough"), just not one we'd hit until pushing sustained write load through it. The current manual is [truenas-vm.md](../runbooks/truenas-vm.md).
 
 **Ruled out:** disk health (all SMART-clean, and post-recovery scrub verified every byte with 0 errors), memory ballooning (`balloon: 0` in the VM config — ballooning + passthrough is the *other* classic cause of DMA-into-unmapped-memory faults, but it's disabled here), PSU power grouping (2 of 3 drives share one PSU SATA line, 1 is independent — all 3 disks errored regardless of grouping).
 
@@ -42,7 +46,7 @@ Any increase from these values under normal operation (with new cables/controlle
 
 **Why this was never seen before:** the pool was near-empty until now; the migration smoke test was almost certainly the first sustained sequential write this passthrough setup ever handled. The configuration didn't recently break — it was never validated under load.
 
-## Debugging gotcha: clock mismatch between pve-01 and TrueNAS
+### Debugging gotcha: clock mismatch between pve-01 and TrueNAS
 
 `pve-01` runs in `CEST` (UTC+2); the TrueNAS VM runs in `PDT` (UTC-7) — a **9-hour offset**. TrueNAS's own alert banner displayed a *third*, different-looking timestamp for the same event. When correlating `dmesg -T` timestamps from TrueNAS against `journalctl` on `pve-01`, convert first:
 
@@ -52,13 +56,15 @@ ssh truenas -- date; ssh truenas -- date -u
 ```
 `pve-01_time = truenas_time + 9h`. Querying `journalctl` on the wrong host with the wrong offset returns a clean, empty log — easy to misread as "nothing happened on the host side" when actually the window was just wrong.
 
-## Non-fixes (considered and rejected)
+### Non-fixes (considered and rejected)
 
-- **Disabling IOMMU/VT-d in BIOS** — kills VFIO passthrough entirely (storage *and* the planned GPU), forcing TrueNAS onto emulated disks, which [truenas-init-notes.md](truenas-init-notes.md) documents as worse (SMART/ZFS/flush-ordering problems). Also doesn't address the cause: the IOMMU is correctly catching a real out-of-bounds DMA read; removing the referee doesn't fix the foul.
+- **Disabling IOMMU/VT-d in BIOS** — kills VFIO passthrough entirely (storage *and* the planned GPU), forcing TrueNAS onto emulated disks, which `truenas-init-notes.md` then documented as worse (SMART/ZFS/flush-ordering problems; current manual: [truenas-vm.md](../runbooks/truenas-vm.md)). Also doesn't address the cause: the IOMMU is correctly catching a real out-of-bounds DMA read; removing the referee doesn't fix the foul.
 - **`iommu=pt` kernel parameter** — only relaxes translation for *host-owned* devices; VFIO-assigned devices keep full guest mappings, so it has no effect on this fault. Commonly suggested in forums, doesn't apply.
 - **BIOS/microcode update on pve-01** — plausible aggravator-reducer (early Raptor Lake boards had AHCI/VFIO quirks improved by firmware), free to do, worth doing — but not trustable as *the* fix: proving a negative against an intermittent load-triggered fault would require hours of sustained-write soak testing against the pool.
 
-## Fix: move off the onboard controller
+## Fix
+
+### Move off the onboard controller
 
 The onboard chipset SATA controller (`00:17.0`) is not suitable for VFIO passthrough under sustained write load. Fix is a dedicated add-in SATA controller card, passed through to the TrueNAS VM instead. This is also the decisive experiment: if host-side DMAR faults vanish under the same rsync load on the new controllers, the diagnosis is confirmed closed; if they persist, investigate at the BIOS/IOMMU platform level next.
 
@@ -68,14 +74,14 @@ The onboard chipset SATA controller (`00:17.0`) is not suitable for VFIO passthr
 1. JMB582 is a native PCIe x1 chip, avoiding the ASM1166 electrical-lane ambiguity entirely.
 2. Splitting the raidz1's 3 disks across two independent controllers reduces blast radius: tonight's near-miss was scary specifically because *all three* raidz1 members shared one controller, so a controller-level fault threatened all three simultaneously — beyond raidz1's single-disk fault tolerance. Two controllers means a full controller failure takes out at most 2 of 3 disks on one card, not all 3 at once.
 
-**Avoid:** ASM1061-based cards — already flagged in [truenas-init-notes.md](truenas-init-notes.md) for the same FLR/reset problem that caused tonight's incident.
+**Avoid:** ASM1061-based cards — already flagged then in `truenas-init-notes.md` for the same FLR/reset problem that caused tonight's incident (current manual: [truenas-vm.md](../runbooks/truenas-vm.md)).
 
 Once installed: verify each card lands in its own IOMMU group before trusting it for the real migration —
 ```bash
 find /sys/kernel/iommu_groups/ -type l | grep <pci-address>
 ```
 
-## Resolution (2026-08-03): cards installed, one surprise, decisive experiment PASSED
+### Resolution (2026-08-03): cards installed, one surprise, decisive experiment PASSED
 
 Two AXAGON PCES-SJ2 cards (JMB582) were installed, one per x1 slot, disks split 2+1
 (`03:00.0`: two disks, `05:00.0`: one disk — see serial baseline above), with reseated SATA data cables.
@@ -126,7 +132,7 @@ Follow-ups:
 - If a future dual-slot GPU covers PCIEX1_1 (it sits directly below the x16 on this board),
   fall back to a single 4-port ASM1064 card in the remaining slot.
 
-## Diagnostic commands used (for future reference)
+### Diagnostic commands used (for future reference)
 
 ```bash
 # Pool state
@@ -167,26 +173,28 @@ ssh truenas -- "zpool scrub spinners-01"    # after resilver completes
 ssh truenas -- "zpool clear spinners-01"    # after scrub reports 0 errors
 ```
 
-## Lessons learned
+## Lessons
+
+### Lessons learned
 
 - Smoke-test big migrations with real sustained load before trusting them unattended — this exact issue would have hit repeatedly, unattended, during the real ~3TB transfer if the single-file smoke test hadn't caught it first.
 - A raidz1 vdev where all members share one controller has a hidden single point of failure: a controller-level fault can threaten all members simultaneously, exceeding raidz1's 1-disk tolerance even though no individual disk is actually bad.
-- Onboard chipset SATA/AHCI controllers are a known-weak choice for VFIO passthrough vs. a dedicated add-in card, especially under sustained write load — this applies even though whole-controller passthrough is otherwise the right general approach for TrueNAS-in-a-VM (see [truenas-init-notes.md](truenas-init-notes.md)).
+- Onboard chipset SATA/AHCI controllers are a known-weak choice for VFIO passthrough vs. a dedicated add-in card, especially under sustained write load — this applies even though whole-controller passthrough is otherwise the right general approach for TrueNAS-in-a-VM (see [truenas-vm.md](../runbooks/truenas-vm.md)).
 - A hung graceful shutdown inside a guest (stuck on I/O to an already-wedged device) will not self-resolve — SIGKILL cannot touch D-state processes. Hard `qm stop`/`qm start` at the hypervisor level is the correct recovery, not more patience.
 - Always double check clock/timezone alignment before concluding "no errors found" when correlating logs across host and guest.
 
-## Key facts
+### Key facts
 
 - pve-01: `*.*.*.*`, CEST
 - TrueNAS: `*.*.*.*`, VM ID `100`, PDT
-- Passed-through controller: PCI `0000:00:17.0` ("Raptor Lake SATA AHCI Controller" inside the guest)
+- Passed-through controller: PCI `0000:00:17.0` ("Raptor Lake SATA AHCI Controller" inside the guest) (historical; see [truenas-vm.md](../runbooks/truenas-vm.md) for current config)
 - Pool: `spinners-01`, raidz1, 3× Seagate IronWolf ST6000VN006-2ZM186 (serials masked, see baseline table above)
 
 ---
 
-## Appendix: SATA card buying options researched
+### Appendix: SATA card options researched
 
-Chip matters more than brand here — **ASM1064** and **JMB582** are both native PCIe x1 and are the safe picks. **Avoid ASM1061** (known FLR/passthrough instability, already flagged in [truenas-init-notes.md](truenas-init-notes.md)). Be cautious with **ASM1166** — the chip is only native PCIe Gen3 x2, so some cards built on it need an x2/x4 slot despite being marketed for "PCIe x1" compatibility (confirmed with the StarTech 6-port card below).
+Chip matters more than brand here — **ASM1064** and **JMB582** are both native PCIe x1 and are the safe picks. **Avoid ASM1061** (known FLR/passthrough instability, already flagged then in `truenas-init-notes.md`; current manual: [truenas-vm.md](../runbooks/truenas-vm.md)). Be cautious with **ASM1166** — the chip is only native PCIe Gen3 x2, so some cards built on it need an x2/x4 slot despite being marketed for "PCIe x1" compatibility (confirmed with the StarTech 6-port card below).
 
 **Recommended (final pick, 2026-08-01) — AXAGON PCES-SJ2, 2-port, JMB582, native PCIe 3.0 x1**
 Buy two (one per x1 slot) to split the raidz1 across independent controllers. Same JMB582 chip as the IO Crest pick below, but Axagon is a Czech brand — readily deliverable to CZ (Alza/CZC carry Axagon), unlike the UK/US listings below which had prohibitive shipping. Includes low-profile + standard brackets; standard AHCI, no drivers needed on Linux.

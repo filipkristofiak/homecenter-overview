@@ -8,12 +8,6 @@ Home automation stack running on an existing Proxmox homelab server. All service
 
 ## Hardware
 
-### Homelab Server (Proxmox host)
-- CPU: Intel i5-13500T
-- Storage: 3× 6TB Seagate IronWolf 5400 RPM
-- Max power draw: ~150W (including disk spinup peaks)
-- Hypervisor: Proxmox VE
-- Network: Ubiquiti UniFi
 
 ### Zigbee Coordinator
 - Device: **SLZB-06U** (Smlight) — radio TI **CC2652P** (device reports `model: SLZB-06U`, `zb_hw: CC2652P` at `http://*.*.*.*/ha_info`)
@@ -23,35 +17,15 @@ Home automation stack running on an existing Proxmox homelab server. All service
 - Placement: **VLAN 39**, `*.*.*.*` — fixed UniFi DHCP reservation, as confirmed by the owner. The coordinator shares HA's subnet; Z2M → TCP 6638 stays inside the VLAN and needs no firewall rule.
 - Physical: keep it 1–2 m+ from the UDR7 — the router is also the 2.4 GHz Wi-Fi AP.
 
-### Zigbee Devices (planned)
-
-| Category | Purpose | Protocol |
-|---|---|---|
-| Smart plugs with power monitoring | Main PC workstation, homelab server, TV hub, Rancilio espresso machine | Zigbee |
-| Radiator TRVs | Per-room radiator thermostat control | Zigbee |
-| mmWave presence sensors | Motion/presence detection for night lighting | Zigbee |
-| RGBW LED (red, floor level) | Night lighting triggered by presence | Zigbee |
-
-**Smart plug notes:** Verify max current rating per plug (most are 16A/3680W — sufficient for all listed devices). The homelab server plug should be monitored-only, not switched.
-
-**TRV notes:** Standard M30×1.5 thread fits most European radiator valves; adapters available for others.
-
-**Presence sensor notes:** mmWave (e.g. Aqara FP2 or Tuya mmWave modules) preferred over PIR — detects stationary presence, not only movement.
-
----
 
 ## Proxmox VM
 
-- **VM ID:** 203
-- **Hostname:** `homeautomation-01`
-- **OS:** Debian 12 (Bookworm) — provisioned via cloud-init image (not LXC template)
-- **vCPUs:** 2 (affinity pinned to E-cores 12–19 via `qm set 203 --affinity 12-19` after provisioning)
-- **RAM:** 2 GB
-- **Disk:** 32 GB virtio (HA recorder database grows over time; resize with `qm disk resize`)
-- **IP:** `*.*.*.*/24` — VLAN 39, gateway `*.*.*.1`
-- **Network:** virtio NIC on `vmbr0`, VLAN tag 39. Isolated zone — explicit firewall rules for all cross-VLAN access (see Network section).
-- **Runtime:** Docker + Compose plugin (no Docker Desktop, no Portainer required)
-- **Terraform resource:** `proxmox_virtual_environment_vm` (not `proxmox_virtual_environment_container`)
+- **OS:** Debian 12 (Bookworm), provisioned via cloud-init.
+- **Runtime:** Docker + Compose plugin.
+- **Terraform resource:** `proxmox_virtual_environment_vm`.
+
+Sizing and guest identities: [IP addressing](../network/ip-addressing.md).
+Deployment and affinity: [VM runbook](../runbooks/homeautomation-vm.md).
 
 ---
 
@@ -61,25 +35,25 @@ All three services are managed by `ansible/roles/homeassistant` and deployed to
 `/opt/homeassistant/docker-compose.yml` on VM 203. HA keeps its existing config volume.
 
 ### Mosquitto (MQTT broker)
-- Image: `eclipse-mosquitto:2.1.2-alpine`
+- Image tag: `ansible/roles/homeassistant/defaults/main.yml`.
 - Role: routes MQTT publish/subscribe messages between Zigbee2MQTT and Home Assistant; it does not manage Zigbee pairing.
 - Port: `1883` bound to `127.0.0.1` on the VM for host-networked HA. Z2M reaches `mosquitto:1883` over Docker's bridge.
 - Volumes: `./mosquitto/config` (read-only) and `./mosquitto/data`.
-- Anonymous access disabled; two distinct accounts, `z2m` and `homeassistant`, are created by Ansible.
+- Anonymous access disabled; three distinct accounts, `z2m`, `homeassistant` and `periscope`, are created by Ansible.
 
 ### Zigbee2MQTT
-- Image: `koenkk/zigbee2mqtt:2.14.2`
+- Image tag: `ansible/roles/homeassistant/defaults/main.yml`.
 - Role: pairs Zigbee devices via the SLZB-06U on TCP 6638, then translates their commands and reports to MQTT.
 - Depends on Mosquitto; its broker password and Zigbee network key come from vaulted Ansible host variables.
 - Data/config volume: `./zigbee2mqtt/data` (included in the VM backup).
 - Zigbee radio adapter: `zstack` (TI CC2652P), channel 20. Ansible seeds the PAN IDs and channel on first install; Zigbee2MQTT owns `configuration.yaml` afterward. The network key remains in Ansible-managed `secret.yaml`. Do not regenerate it once devices are paired.
-- Frontend: enabled on port 8080, published **only to VM loopback**. From an internal workstation, use `ssh -i ~/.ssh/homelab_id -L 8080:127.0.0.1:8080 ***@*.*.*.*` and open `http://127.0.0.1:8080`. No UniFi rule for 8080 is required.
+- Frontend: port 8080, published **only to VM loopback**. SSH tunnel procedure: [VM runbook](../runbooks/homeautomation-vm.md).
 - Time zone: `Europe/Prague`.
 
 ### Home Assistant
-- Image: `ghcr.io/home-assistant/home-assistant:2026.5.4`
+- Image tag: `ansible/roles/homeassistant/defaults/main.yml`.
 - Install type: **HA Container** (plain Docker container — no Supervisor or add-on store).
-- Role: automation engine and UI. Add the MQTT integration once at **Settings → Devices & services**, broker `localhost:1883`, user `homeassistant`; then Z2M's MQTT discovery makes paired devices appear in HA.
+- Role: automation engine and UI. One-time MQTT integration: [VM runbook](../runbooks/homeautomation-vm.md).
 - Network mode: `host` for mDNS and device discovery.
 - Volumes: `./config:/config`, `/etc/localtime` (read-only).
 - **No `privileged: true` required** — Zigbee is TCP-based, not USB passthrough.
@@ -106,17 +80,7 @@ VLAN 27 has unrestricted inter-zone traffic with VLAN 23 and VLAN 28. Placing HA
 
 VLAN 39 is a new isolated zone (same policy as IoT/Guest): outbound internet allowed, no unsolicited inbound from other VLANs, cross-VLAN access only via explicit firewall rules.
 
-### VLAN 39
-
-| Field | Value |
-|---|---|
-| VLAN ID | 39 |
-| Subnet | `*.*.*.*/24` |
-| Gateway | `*.*.*.1` |
-| DHCP range | `*.*.*.*–.254` |
-| Zone | Isolated |
-| VM IP | `*.*.*.*` (static, `homeautomation-01`) |
-| Zigbee coordinator | `*.*.*.*` (SLZB-06U, PoE from UDR7 Port 1) |
+Address allocations: [IP addressing](../network/ip-addressing.md).
 
 ### Required UniFi firewall rules
 
@@ -135,7 +99,7 @@ No rule is needed for the Zigbee coordinator: Z2M and the SLZB-06U are both on V
 
 ### Proxmox bridge
 
-`vmbr0` must be VLAN-aware with a trunk port to the UniFi switch. The VM's virtio NIC gets VLAN tag 39. No change to the bridge config is needed if VLAN 27 tagging already works (same bridge, different tag).
+`vmbr0` must be VLAN-aware with a trunk port to the UniFi switch. Add every guest VLAN to `bridge-vids` before provisioning; see [host network](../runbooks/pve-01-network.md).
 
 ---
 
@@ -147,34 +111,19 @@ No rule is needed for the Zigbee coordinator: Z2M and the SLZB-06U are both on V
 
 ---
 
-## Planned Automations
-
-| Automation | Trigger | Action |
-|---|---|---|
-| Night lighting | Presence detected, time between ~23:00–07:00 | Turn on floor-level red LED at low brightness |
-| Night light off | No presence detected | Turn off red LED after short delay |
-| Radiator schedule | Time-based / presence-based | Adjust TRV setpoints per room |
-| Power alerts | Plug reports wattage above threshold | Mobile notification |
-| Energy dashboard | Continuous | Track kWh and cost per device in HA Energy panel |
-
----
 
 ## MQTT credentials and Zigbee network identity
 
-The three secrets (`z2m_mqtt_password`, `ha_mqtt_password`, and
-`zigbee_network_key`) are encrypted in
-`ansible/inventory/host_vars/homeautomation-01.yml`. Ansible creates the Mosquitto
-password file with salted hashes and keeps Z2M's `secret.yaml` root-readable
-only. It seeds Z2M's `configuration.yaml` just once: Zigbee2MQTT writes to this
-file itself, and subsequent playbook runs must not overwrite its network state.
-The broker has `allow_anonymous false`. Changing a vaulted MQTT password
-regenerates both broker accounts and restarts the broker and Z2M; changing the
-Zigbee network key after devices join requires re-pairing them.
+The three MQTT accounts (`homeassistant`, `z2m`, `periscope`) and Zigbee network
+key use vaulted secrets in `ansible/inventory/host_vars/homeautomation-01.yml`.
+Ansible creates the Mosquitto password file with salted hashes and keeps Z2M's
+`secret.yaml` root-readable only. It seeds Z2M's `configuration.yaml` just once:
+Zigbee2MQTT writes to this file itself, and subsequent playbook runs must not
+overwrite its network state. The broker has `allow_anonymous false`.
+Changing a vaulted MQTT password updates the managed broker accounts; changing
+the Zigbee network key after devices join requires re-pairing them.
 
-To complete HA's MQTT integration in its UI, retrieve the HA account password
-from the root-only file `/opt/homeassistant/mosquitto/ha-mqtt-password` on VM 203.
-Do not put it in HA's `configuration.yaml`; the MQTT integration stores its
-credentials through the HA UI.
+One-time MQTT setup and credential retrieval: [VM runbook](../runbooks/homeautomation-vm.md).
 
 ---
 
@@ -187,19 +136,3 @@ Since this runs HA Core (Docker), the following are relevant:
 - HACS (community integrations) can still be installed manually
 - HA integrations and automations configured in the UI persist in `./config`
 - This is intentional: HA Container inside a Debian VM keeps the host generic.
-
----
-
-## Directory Layout (deployed)
-
-```text
-/opt/homeassistant/
-├── docker-compose.yml
-├── config/                  # Home Assistant state
-├── mosquitto/
-│   ├── config/             # mosquitto.conf and hashed passwd
-│   ├── data/               # broker persistence
-│   └── ha-mqtt-password    # root-only; enter once in HA UI
-└── zigbee2mqtt/
-    └── data/               # configuration.yaml, secret.yaml, device state, coordinator backup
-```

@@ -11,9 +11,27 @@
   command: "{{ nut_exporter_script }}"
   changed_when: false
 
-- name: Schedule NUT metrics cron job (every minute)
+- name: Remove NUT metrics cron job (replaced by systemd timer)
   cron:
     name: nut-metrics
-    minute: "*"
-    job: "{{ nut_exporter_script }}"
     user: root
+    state: absent
+
+- name: Deploy nut-metrics service unit
+  template:
+    src: nut-metrics.service.j2
+    dest: /etc/systemd/system/nut-metrics.service
+    mode: "0644"
+
+- name: Deploy nut-metrics timer unit
+  copy:
+    src: nut-metrics.timer
+    dest: /etc/systemd/system/nut-metrics.timer
+    mode: "0644"
+
+- name: Enable nut-metrics timer (every minute)
+  systemd:
+    name: nut-metrics.timer
+    enabled: true
+    state: started
+    daemon_reload: true

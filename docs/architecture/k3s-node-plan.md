@@ -52,7 +52,7 @@ Two tiers, split by availability and latency requirements:
   Redpanda 20–40 GB, Prometheus 15–30 GB (30-day retention), rest scratch.
 - **Tier 2 — TrueNAS-backed (future expansion):** superseded by a 1TB SSD and
   the two-JMB582-card split — see
-  [`docs/infrastructure/sata-port-allocation-ssd-hdd.md`](../infrastructure/sata-port-allocation-ssd-hdd.md)
+  [`sata-port-allocation-ssd-hdd.md`](sata-port-allocation-ssd-hdd.md)
   for current port/passthrough allocation. Design intent unchanged: single-disk
   pool on TrueNAS → served to k3s via
   [democratic-csi](https://github.com/democratic-csi/democratic-csi) (TrueNAS

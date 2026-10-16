@@ -90,19 +90,8 @@ resource "proxmox_virtual_environment_container" "lxc_jellyfin" {
 # Prometheus node-exporter. The SLZB-06U Zigbee coordinator shares VLAN *, so
 # Z2M → TCP 6638 needs no rule.
 #
-# Pre-requisite: a Debian 12 cloud-init template must exist on pve-01.
-# Create it once from the Proxmox shell:
-#
-#   wget -P /var/lib/vz/template/iso/ \
-#     https://cloud.debian.org/images/cloud/bookworm/latest/debian-12-genericcloud-amd64.qcow2
-#   qm create <var.debian12_template_id> --name debian-12-cloudinit --memory 1024 \
-#     --cores 1 --net0 virtio,bridge=vmbr0 --ostype l26
-#   qm importdisk <var.debian12_template_id> \
-#     /var/lib/vz/template/iso/debian-12-genericcloud-amd64.qcow2 local-lvm
-#   qm set <var.debian12_template_id> --scsihw virtio-scsi-pci \
-#     --scsi0 local-lvm:vm-<id>-disk-0 --ide2 local-lvm:cloudinit \
-#     --boot c --bootdisk scsi0 --agent enabled=1 --serial0 socket --vga serial0
-#   qm template <var.debian12_template_id>
+# Pre-requisite: Debian 12 cloud-init template var.debian12_template_id (9000)
+# on pve-01 — create it once per docs/runbooks/pve-01-rebuild.md § 3.
 #
 # Home Automation UI → http://***:8123
 # -----------------------------------------------------------------------------

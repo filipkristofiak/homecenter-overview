@@ -1,8 +1,8 @@
 # pve-01 Resource Overview
 
 Runs from your Mac, SSHes into pve-01, and renders a live memory/CPU table for
-all LXCs and VMs. See [docs/runbooks/pve-status.md](../../docs/runbooks/pve-status.md)
-for how it works, example output, and the public status page setup.
+all LXCs and VMs. This README covers setup and CLI usage; the
+[runbook](../../docs/runbooks/pve-status.md) covers operation, how it works and example output.
 
 ## Setup
 

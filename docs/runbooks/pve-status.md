@@ -6,24 +6,7 @@ for quick setup/usage.
 
 ---
 
-## Setup
-
-```bash
-python3 -m venv tools/pve/.venv
-source tools/pve/.venv/bin/activate
-pip install -r tools/pve/requirements.txt
-```
-
----
-
-## Usage
-
-```bash
-source tools/pve/.venv/bin/activate
-python tools/pve/status.py             # render in terminal
-python tools/pve/status.py --web-dir DIR   # write DIR/public/index.html (static-site export)
-python tools/pve/status.py --publish   # push HTML to the monitoring-01 status page
-```
+Setup and CLI usage: [tools/pve/README.md](../../tools/pve/README.md).
 
 ---
 
@@ -71,7 +54,7 @@ python tools/pve/status.py --publish   # push HTML to the monitoring-01 status p
   toward `guests total` instead of silently dropping out
 - NVMe footer reads `/var/lib/prometheus/node-exporter/nvme.prom` on the host (written
   every 5 min by the SMART collector, see
-  [pve-01-nvme-health.md](pve-01-nvme-health.md)); health flag thresholds mirror the
+  [pve-01-host.md](pve-01-host.md)); health flag thresholds mirror the
   Prometheus alert rules, and the line warns in red if the file is >30 min stale.
   This footer appears only in terminal output (as shown above); both the
   `--web-dir` export and `--publish` HTML omit it.
@@ -86,7 +69,7 @@ Requires `~/.ssh/homelab_id` key with access to `***@*.*.*.*`.
 + `export_html` with an Ubuntu-terminal theme: aubergine background, Tango palette;
 fixed 134-column width, rendered at 80% font size)
 and scps it to `monitoring-01:/opt/monitoring/status/index.html`, where an
-`nginx:alpine` container from the monitoring compose stack serves it on port 80
+nginx (`nginx_image_tag` in `ansible/roles/monitoring/defaults/main.yml`) container from the monitoring compose stack serves it on port 80
 under `/status/` (`/` redirects there; config in `status-nginx.conf.j2`):
 
 - **URL**: `http://*.*.*.*/status`
@@ -94,18 +77,6 @@ under `/status/` (`/` redirects there; config in `status-nginx.conf.j2`):
   when `--publish` is run from the Mac — check the "as of" timestamp at the bottom.
 - Uses the same `~/.ssh/homelab_id` key as everything else; no new trust edges.
 
-### Follow-up: automate publishing
-
-The page is only as fresh as the last manual run. To make it self-updating, run the
-script on a schedule *on monitoring-01* (systemd timer, every 1–2 min). Deliberately
-deferred because it requires a new trust edge — monitoring-01 would need an SSH key
-authorized on `root@pve-01`. When doing it:
-
-- use a dedicated key, restricted in `authorized_keys` (`from=`, ideally
-  `command=` wrappers), not the general homelab key
-- add SSH `ControlMaster` reuse — the script opens ~10 sequential SSH connections
-  per run
-- deploy the timer + key via the monitoring role so it stays in code
 
 ---
 

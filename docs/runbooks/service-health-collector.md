@@ -15,8 +15,15 @@ If Zigbee2MQTT's own `configuration.yaml` has availability disabled, the playboo
 
 ## Verify
 
+On homeautomation-01:
+
 ```sh
 docker ps --format '{{.Names}} {{.Status}}' # the three HA containers show (healthy)
+```
+
+From a workstation:
+
+```sh
 curl -s http://*.*.*.*:9100/metrics | grep '^periscope_'
 curl -s http://*.*.*.*:9100/metrics | grep ^periscope_zigbee_
 curl -s http://*.*.*.*:8090/api/modules | python3 -m json.tool

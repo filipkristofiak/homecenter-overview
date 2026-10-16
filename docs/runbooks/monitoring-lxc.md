@@ -1,34 +1,9 @@
 # Monitoring LXC — pve-01
 
-## What was done
+monitoring-01 runs the Ansible-managed Prometheus/Grafana Compose stack plus pve-exporter, the status-page nginx and periscope.
+Prometheus collects guest and host metrics; follow the linked exporter and periscope runbooks for their prerequisites.
 
-Added Terraform and Ansible to provision and configure a monitoring stack as a privileged
-LXC container on pve-01. The container runs Grafana and Prometheus as Docker containers
-managed by docker-compose. Prometheus scrapes metrics; Grafana provides dashboards.
-
-No infrastructure was changed yet — these are ready to apply.
-
----
-
-## File layout
-
-```
-terraform/pve-01/
-  variables.tf              added monitoring_lxc_ip, monitoring_lxc_id
-  main.tf                   LXC container resource (monitoring-01, VLAN 27)
-  terraform.tfvars.example  monitoring_lxc_ip / monitoring_lxc_id example values
-
-ansible/
-  inventory/hosts.yml       monitoring-01 added to pve_lxc group
-  playbooks/monitoring.yml  entry-point playbook
-  roles/monitoring/
-    defaults/main.yml       tunable vars: monitoring_dir, ports, retention
-    tasks/main.yml          install Docker CE + Compose plugin, deploy configs, start stack
-    handlers/main.yml       apt cache refresh + stack recreate on config change
-    templates/
-      docker-compose.yml.j2  Prometheus (9090) + Grafana (3000) + status-page nginx (80, /status), named volumes
-      prometheus.yml.j2      scrape config (add targets here as services grow)
-```
+See [pve-exporter.md](pve-exporter.md), [pve-status.md](pve-status.md) and [periscope.md](periscope.md).
 
 ---
 
@@ -70,10 +45,8 @@ curl -s http://*.*.*.*:3000/api/health  # Grafana
 ```
 
 Or open in a browser:
-- Grafana → `http://*.*.*.*:3000` (default credentials: `admin` / `admin`)
+- Grafana → `http://*.*.*.*:3000` (`admin` / vaulted `grafana_admin_password`)
 - Prometheus → `http://*.*.*.*:9090`
-
-**Change the Grafana admin password on first login.**
 
 ---
 
@@ -82,10 +55,6 @@ Or open in a browser:
 | Decision | Value | Reason |
 |---|---|---|
 | Container type | Privileged LXC | Docker daemon requires full cgroup and netns access |
-| CT ID | `201` | After nut-01 (200); change in `terraform.tfvars` if taken |
-| Hostname | `monitoring-01` | Follows `<service>-XX` naming convention |
-| IP | `*.*.*.*/24` | VLAN 27, static; next free after nut-01 (.10) |
-| Gateway | `*.*.*.1` | VLAN 27 gateway |
 | OS template | Debian 12 standard | Consistent with rest of homelab LXC containers |
 | CPU | 2 cores | Prometheus TSDB compaction and scrape ingestion can spike |
 | RAM | 1024 MB | Prometheus + Grafana + OS headroom; increase for many targets |
@@ -117,8 +86,7 @@ curl -X POST http://*.*.*.*:9090/-/reload
 
 ## Pre-flight checklist
 
-- [ ] Debian 12 template downloaded on pve-01: `pveam update && pveam download local debian-12-standard_12.7-1_amd64.tar.zst`
-- [ ] CT ID `201` is free on pve-01: `pct list`
-- [ ] IP `*.*.*.*` is not in use: `ping -c1 *.*.*.*`
+- [ ] Debian 12 template available on pve-01: [template prerequisites](pve-01-rebuild.md#3-templates-on-pve-01)
+- [ ] lab-deck `dist/` built ([periscope.md](periscope.md))
 - [ ] SSH key added to `terraform.tfvars`
 - [ ] `community.docker` Ansible collection installed

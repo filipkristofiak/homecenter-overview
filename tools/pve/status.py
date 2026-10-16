@@ -36,7 +36,7 @@ MONITORING_HOST = "***@*.*.*.*" # user@host
 PUBLISH_DEST = "/opt/monitoring/status/index.html"
 STATUS_URL = "http://*.*.*.*/status"
 
-# written by the nvme-metrics timer on pve-01 (see docs/runbooks/pve-01-nvme-health.md)
+# written by the nvme-metrics timer on pve-01 (see docs/runbooks/pve-01-host.md)
 NVME_PROM = "/var/lib/prometheus/node-exporter/nvme.prom"
 NVME_STALE_MIN = 30
 # rated endurance per model — only used for the "written / rated" figure

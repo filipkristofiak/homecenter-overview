@@ -81,15 +81,15 @@ This respects the motherboard’s maximum memory (128 GB).
 ## 🗄️ Storage
 
 ### **Primary (OS + VM storage)**
-- **500 GB *** NVMe**  
+- **500 GB *** NVMe** (DRAM-less, single disk, no mirror)
   - Used for Proxmox OS  
   - VM boot disks  
   - Not used for NAS pool
 
 ### **NAS Pool Drives**
 - **3× Seagate IronWolf 6 TB**  
-  - ZFS RAIDZ1 pool (`spinners`), dataset `media`
-  - Connected to SATA III ports, passed through via full SATA controller passthrough to TrueNAS SCALE VM
+  - ZFS RAIDZ1 pool (`spinners-01`), dataset `media`
+  - Connected to two PCIe x1 JMB582 SATA cards (`0000:03:00.0`: 2 drives, `0000:05:00.0`: 1 drive + 1 free port); both cards are passed through whole to the TrueNAS SCALE VM (`hostpci0`/`hostpci1` on VM 100)
   - TrueNAS reachable at `*.*.*.*`
 
 ### **Planned**
@@ -106,7 +106,7 @@ This respects the motherboard’s maximum memory (128 GB).
 
 Port/passthrough allocation for both drives (why not full-controller
 passthrough, why not the free JMB582 port):
-[`sata-port-allocation-ssd-hdd.md`](sata-port-allocation-ssd-hdd.md)
+[`sata-port-allocation-ssd-hdd.md`](../architecture/sata-port-allocation-ssd-hdd.md)
 
 ---
 
@@ -121,22 +121,26 @@ passthrough, why not the free JMB582 port):
 ## 🔌 Expansion & Passthrough Notes
 
 ### **PCIe layout**
-- **1× PCIe x16** slot (GPU, HBA, NIC)
-- **2× PCIe x1** slots  
-  - Available for additional SATA cards, NICs, etc.
+- **1× PCIe x16** slot — free, reserved for a future GPU
+- **2× PCIe x1** slots — both occupied by JMB582 2-port SATA cards, passed through to TrueNAS
 
-### **SATA controller passthrough**
-- The board includes **4× SATA ports** on a single controller.  
-- For TrueNAS SCALE:  
-  - Pass through the **entire SATA controller** for reliable ZFS operation.  
-  - Avoid individual drive passthrough when possible.
+### **SATA controllers**
+| Controller | PCI address | Owner | Ports used |
+|---|---|---|---|
+| Onboard Intel (4 ports) | `0000:00:17.0` | Proxmox host (`ahci`) | 0/4 — free |
+| JMB582 card, x1 slot 1 | `0000:03:00.0` | TrueNAS VM (`vfio-pci`) | 2/2 |
+| JMB582 card, x1 slot 2 | `0000:05:00.0` | TrueNAS VM (`vfio-pci`) | 1/2 |
+
+- The onboard controller is **not** passed through: whole-controller VFIO passthrough of it faulted under sustained write (no FLR, DMAR faults); see [TrueNAS SATA passthrough fault](../journal/2026-08-01-truenas-sata-passthrough-fault.md). It is fine for host-native use.
+- `spinners-01` members are split 2+1 across the cards (`03:00.0`: 2, `05:00.0`: 1); a `03:00.0` fault still takes out two members, which RAIDZ1 does not survive.
+- Allocation plan for new SATA drives: [SATA port allocation](../architecture/sata-port-allocation-ssd-hdd.md).
 
 ---
 
 ## 📦 Current Role
 
 - **Proxmox virtualization host** (NVMe)  
-- **TrueNAS SCALE VM** (`*.*.*.*`) with full SATA controller passthrough — `spinners` RAIDZ1 pool, `media` dataset  
-- Home Assistant, Jellyfin, Monitoring, NUT Server LXC containers  
+- **TrueNAS SCALE VM** (`*.*.*.*`) with both PCIe SATA cards passed through — `spinners-01` RAIDZ1 pool, `media` dataset
+- LXC containers: NUT Server, Monitoring, Jellyfin; VMs: Home Assistant (homeautomation-01), k3s-01
 
 ---

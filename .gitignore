@@ -41,6 +41,9 @@ id_ed25519
 # Drafts / WIP
 .draft/
 
+# Local public-sync cursor
+/.claude/skills/go-public/.sync-state.json
+
 # Editors
 .vscode/
 .idea/

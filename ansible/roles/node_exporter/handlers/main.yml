@@ -3,3 +3,7 @@
   systemd:
     name: prometheus-node-exporter
     state: restarted
+
+- name: Reload systemd for collector drop-ins
+  systemd:
+    daemon_reload: true

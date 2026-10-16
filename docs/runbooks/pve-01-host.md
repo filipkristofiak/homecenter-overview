@@ -1,6 +1,44 @@
-# NVMe Health Monitoring — pve-01
+# pve-01 host
 
-## What was done
+pve-01 runs node exporter, a scheduled NVMe SMART textfile collector and smartd; `pve-host.yml` also applies kernel tuning.
+Prometheus evaluates drive-health and collector-freshness rules; alerts are visible in Prometheus but not pushed anywhere.
+
+## Apply
+
+```bash
+cd ansible
+ansible-playbook playbooks/pve-host.yml     # kernel tuning, collector + smartd on pve-01
+ansible-playbook playbooks/monitoring.yml   # scrape target + alert rules on monitoring-01
+```
+
+Both playbooks are idempotent. The monitoring playbook restarts the docker-compose
+stack when the config changes (brief Prometheus/Grafana blip).
+
+## Kernel tuning
+
+### vm.swappiness = 10
+
+**File:** `/etc/sysctl.d/99-pve.conf`
+
+Proxmox default is 60. Lower swappiness reduces the kernel's tendency to swap host
+processes to disk, keeping RAM available for VMs and LXC containers. At 60 the kernel
+will proactively page out host memory even under moderate pressure, which can cause
+latency spikes in running guests.
+
+`/etc/sysctl.d/99-pve.conf` is used rather than `/etc/sysctl.conf` because:
+- Drop-in files are easier to audit and remove without touching system-wide config.
+- Files in `/etc/sysctl.d/` load in lexicographic order; the `99-` prefix ensures
+  these settings load last and override any earlier defaults (Proxmox ships its own
+  tuning in lower-numbered files such as `10-pve.conf`).
+
+Verify on pve-01:
+
+```bash
+sysctl vm.swappiness
+# expected: vm.swappiness = 10
+```
+
+## NVMe collector
 
 pve-01 runs everything (hypervisor + all LXC/VM disks) from a single NVMe drive
 (rated 160 TBW), so its health is monitored from three angles:
@@ -19,45 +57,14 @@ The `tools/pve/status.py` terminal overview (see [pve-status.md](pve-status.md))
 a one-line health summary parsed from the collector's output, with the same thresholds
 as the alert rules.
 
----
 
-## File layout
-
-```
-ansible/
-  playbooks/pve-host.yml               applies node_exporter + pve_host to pve-01
-  roles/pve_host/
-    tasks/main.yml                     install smartmontools + nvme-cli, enable smartd,
-                                       deploy collector + systemd units
-    templates/nvme-metrics.j2          Python collector → /usr/local/bin/nvme-metrics
-    files/nvme-metrics.service         oneshot unit running the collector
-    files/nvme-metrics.timer           every 5 min (+2 min after boot)
-  roles/monitoring/
-    templates/prometheus.yml.j2        node job includes groups['proxmox_hosts']; rule_files
-    templates/alerts.yml.j2            NVMe alert rules
-    templates/docker-compose.yml.j2    mounts alerts.yml into the Prometheus container
-```
-
-On pve-01 itself:
+On pve-01:
 
 | Path | Purpose |
 |---|---|
 | `/usr/local/bin/nvme-metrics` | collector (parses `nvme smart-log -o json`) |
 | `/etc/systemd/system/nvme-metrics.{service,timer}` | schedule |
 | `/var/lib/prometheus/node-exporter/nvme.prom` | output read by node exporter |
-
----
-
-## Deploy
-
-```bash
-cd ansible
-ansible-playbook playbooks/pve-host.yml     # collector + smartd on pve-01
-ansible-playbook playbooks/monitoring.yml   # scrape target + alert rules on monitoring-01
-```
-
-Both playbooks are idempotent. The monitoring playbook restarts the docker-compose
-stack when the config changes (brief Prometheus/Grafana blip).
 
 ---
 
@@ -81,7 +88,7 @@ ssh -i ~/.ssh/homelab_id ***@*.*.*.* \
 
 ---
 
-## Metrics reference
+## Metrics
 
 All series carry `device`, `model`, `serial` labels (plus `nodename=pve-01` from the
 scrape config).
@@ -107,12 +114,7 @@ rate(nvme_written_bytes_total[6h]) * 86400 / 1e9
 (160e12 - nvme_written_bytes_total) / (rate(nvme_written_bytes_total[7d]) * 86400 * 365)
 ```
 
-Baseline at deployment (2026-07-18): 0 % wear, 100 % spare, 0 media errors, 37 °C,
-~0.95 TB written of 160 TBW.
-
----
-
-## Alert rules
+## Alerts
 
 Defined in `roles/monitoring/templates/alerts.yml.j2`, visible at
 `http://*.*.*.*:9090/alerts`.
@@ -163,13 +165,9 @@ smartctl -a /dev/nvme0n1
 
 ---
 
-## Limitations / follow-ups
+## Limitations
 
-- **No push notifications** — rules fire in Prometheus/Grafana but nothing is routed
-  anywhere. Deploying Alertmanager (or Grafana contact points) is the natural next step.
 - **SMART won't predict everything** — controllers die suddenly without warning.
   Weekly VM 203 backups to TrueNAS mitigate NVMe loss for Home Assistant; other
   guests and host configuration remain outside that backup. See
   [pve-01-backups.md](pve-01-backups.md).
-- LVM-thin pool usage on the host is not yet alerted on (visible via pve-exporter /
-  node exporter filesystem metrics).

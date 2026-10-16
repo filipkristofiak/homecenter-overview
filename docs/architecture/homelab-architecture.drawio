@@ -106,7 +106,7 @@
         <mxCell id="ups" value="APC UPS" style="rounded=1;absoluteArcSize=1;arcSize=12;whiteSpace=wrap;html=1;fontFamily=Helvetica;fontSize=12;fontColor=#DCE5EF;fillColor=#1E293B;strokeColor=#64748B;strokeWidth=1.5;" vertex="1" parent="1">
           <mxGeometry x="580" y="920" width="200" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="disks" value="SATA HDDs&#xa;(RAIDZ1 pool: spinners)" style="shape=cylinder3;boundedLbl=1;size=10;whiteSpace=wrap;html=1;fontFamily=Helvetica;fontSize=12;fontColor=#DCE5EF;fillColor=#1E293B;strokeColor=#64748B;strokeWidth=1.5;" vertex="1" parent="1">
+        <mxCell id="disks" value="SATA HDDs&#xa;(RAIDZ1 pool: spinners-01)" style="shape=cylinder3;boundedLbl=1;size=10;whiteSpace=wrap;html=1;fontFamily=Helvetica;fontSize=12;fontColor=#DCE5EF;fillColor=#1E293B;strokeColor=#64748B;strokeWidth=1.5;" vertex="1" parent="1">
           <mxGeometry x="860" y="910" width="200" height="80" as="geometry" />
         </mxCell>
 

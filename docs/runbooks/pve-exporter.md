@@ -1,37 +1,9 @@
 # PVE Exporter — Proxmox metrics in Prometheus
 
-## What was done
-
-Added `prometheus-pve-exporter` to the monitoring stack on `monitoring-01`. It talks to the
-Proxmox REST API (`pve-01:8006`) using an API token and exposes per-guest and host metrics
-that Prometheus can scrape. This replaces SSH-based polling for resource data and feeds the
-custom PVE Overview Grafana dashboard.
-
-No SSH automation to the hypervisor — the exporter uses the same HTTP API as the Proxmox
-web UI, authenticated with a read-only API token.
+monitoring-01 runs prometheus-pve-exporter against the Proxmox API with a read-only `PVEAuditor` token.
+Prometheus collects host and guest metrics for the PVE dashboard without SSH polling.
 
 Source: [github.com/prometheus-pve/prometheus-pve-exporter](https://github.com/prometheus-pve/prometheus-pve-exporter) (Apache 2.0)
-
----
-
-## File layout
-
-```
-ansible/
-  group_vars/pve_lxc/
-    defaults/main.yml           pve_host, pve_api_user, pve_api_token_name
-    vault.yml                   pve_api_token_value (ansible-vault encrypted)
-  roles/monitoring/
-    defaults/main.yml           pve_exporter_port: 9221
-    tasks/main.yml              deploys pve-exporter.yml config
-    templates/
-      docker-compose.yml.j2     pve-exporter service (prompve/prometheus-pve-exporter)
-      pve-exporter.yml.j2       exporter config — token credentials
-      prometheus.yml.j2         pve scrape job (metrics_path /pve, target pve-01)
-
-dashboards/
-  pve-overview.json             importable Grafana dashboard (6 panels)
-```
 
 ---
 
@@ -55,7 +27,7 @@ The exporter needs a read-only API token. Do this once in the Proxmox web UI:
 
 ```bash
 cd ansible
-ansible-vault edit group_vars/pve_lxc/vault.yml
+ansible-vault edit inventory/group_vars/pve_lxc/vault.yml
 ```
 
 Add:
@@ -179,5 +151,5 @@ All panels auto-select the Prometheus datasource via the `$datasource` template 
 ## Rotating the API token
 
 1. Datacenter → API Tokens → Delete the `prometheus@pve!monitoring` token → Add a new one
-2. Update vault: `ansible-vault edit group_vars/pve_lxc/vault.yml`
+2. Update vault: `ansible-vault edit inventory/group_vars/pve_lxc/vault.yml`
 3. Redeploy: `ansible-playbook playbooks/monitoring.yml`

@@ -8,7 +8,7 @@ on that NVMe; its Docker `/config` bind mount is `/opt/homeassistant/config` ins
 the VM. Terraform and Ansible can rebuild the VM and container but not that live
 application state.
 
-As deployed on 2026-10-10:
+Current backup policy:
 
 | Setting | Value |
 |---|---|
@@ -16,7 +16,6 @@ As deployed on 2026-10-10:
 | Destination | TrueNAS VM 100 (`*.*.*.*`), dataset `spinners-01/proxmox-backups` on the passed-through HDD pool |
 | Proxmox storage | NFS ID `proxmox-backups`, export `/mnt/spinners-01/proxmox-backups`, content **Backup** only, node `pve-01` |
 | Job | Enabled, `pve-01`, VM 203 only, **Saturday 03:00**, snapshot mode, ZSTD compression, keep last **1** |
-| First archive | `vzdump-qemu-203-2026_10_10-13_31_16.vma.zst`, 4,580,322,554 bytes (~4.27 GiB), listed on the NFS storage |
 
 The dataset is owned by `root:root` with Unix permissions `700`, LZ4 compression,
 and **no 500 GB quota or reservation**. It shares the existing `spinners-01` pool
@@ -62,7 +61,6 @@ After the first run and periodically after scheduled runs:
   The job currently does **not** repeat missed runs after downtime.
 - Keep enough pool space to finish a new archive while the previous one exists;
   `keep-last=1` controls retained completed backups, not peak space during a run.
-  The configured VM disk is 32 GB, while the first compressed archive was ~4.27 GiB.
 - **A restore has not yet been demonstrated.** To test, use the archive's
   **Restore** action to a *different*, unused VM ID on `local-lvm`, with networking
   disabled or isolated to avoid duplicate IP/service conflicts. Boot that VM,
@@ -75,8 +73,9 @@ networking and the TrueNAS VM's PCI-controller passthrough first; re-create or
 restore TrueNAS's boot/config disk, import `spinners-01`, and make the NFS export
 available. Then re-add the Proxmox NFS storage and restore VM 203 from the archive.
 The manual host/network steps are documented in
-[pve-01-network-fix.md](pve-01-network-fix.md) and
-[truenas-sata-passthrough-fault.md](truenas-sata-passthrough-fault.md).
+[pve-01 network](pve-01-network.md) and
+[TrueNAS rebuild](truenas-vm.md#rebuild)
+(history: [SATA passthrough fault](../journal/2026-08-01-truenas-sata-passthrough-fault.md)).
 Keep a TrueNAS configuration export, Proxmox host-specific config, Terraform
 state, and the Ansible vault password somewhere **outside this NVMe**; this VM
 backup does not contain them.

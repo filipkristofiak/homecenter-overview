@@ -1,0 +1,12 @@
+[Unit]
+Description=Write NUT UPS metrics for node-exporter
+
+[Service]
+Type=oneshot
+ExecStart={{ nut_exporter_script }}
+# Runs every minute. Keep systemd's per-run "Started"/"Deactivated" info lines
+# out of the journal: on nut-01 the per-minute cron log lines kept journald
+# rewriting its files (~3 GB/day of disk writes for ~6 messages/minute).
+# Script output is raised to warning so failures still get logged.
+SyslogLevel=warning
+LogLevelMax=notice
